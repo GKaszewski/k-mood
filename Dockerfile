@@ -15,7 +15,7 @@ COPY crates/ ./crates/
 RUN cargo build --release --bin k-mood
 
 FROM alpine:3
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 COPY --from=builder /app/target/release/k-mood /usr/local/bin/k-mood
 COPY --from=frontend /app/spa/dist /spa/dist
 
