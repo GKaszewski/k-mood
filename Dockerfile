@@ -5,17 +5,17 @@ RUN bun install --frozen-lockfile
 COPY spa/ .
 RUN bun run build
 
-FROM rust:1-alpine AS builder
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /app
-RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 
 RUN cargo build --release --bin k-mood
 
-FROM alpine:3
-RUN apk add --no-cache ca-certificates wget
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates wget libssl3 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/k-mood /usr/local/bin/k-mood
 COPY --from=frontend /app/spa/dist /spa/dist
 
