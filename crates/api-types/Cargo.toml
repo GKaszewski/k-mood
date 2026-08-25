@@ -1,0 +1,14 @@
+[package]
+name = "api-types"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+application.workspace = true
+config.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+utoipa.workspace = true

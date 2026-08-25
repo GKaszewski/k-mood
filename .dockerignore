@@ -1,0 +1,10 @@
+target/
+data/
+.git/
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+config.toml
+spa/node_modules/
+spa/dist/

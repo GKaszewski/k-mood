@@ -1,0 +1,11 @@
+[package]
+name = "exporter"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zip.workspace = true

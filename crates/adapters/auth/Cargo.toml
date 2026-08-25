@@ -1,0 +1,14 @@
+[package]
+name = "auth"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+config.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+serde.workspace = true
+jsonwebtoken.workspace = true
+argon2.workspace = true

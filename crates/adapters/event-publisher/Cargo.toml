@@ -1,0 +1,10 @@
+[package]
+name = "event-publisher"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true

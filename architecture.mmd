@@ -1,0 +1,166 @@
+graph TD
+    subgraph Clients
+        SPA[React SPA]
+        Mobile[Mobile App]
+        Desktop[Desktop App]
+    end
+
+    subgraph Server["server (composition root)"]
+        Main[main.rs]
+        Factory[factory.rs]
+        Scheduler[Reminder Scheduler<br/>tokio interval 60s]
+    end
+
+    subgraph Adapters
+        subgraph Driving["Driving (Primary)"]
+            HTTP[http-axum<br/>REST API + SPA serving]
+        end
+
+        subgraph Driven["Driven (Secondary)"]
+            SQLite[sqlite<br/>Persistence]
+            Auth[auth<br/>JWT + Argon2]
+            Storage[storage<br/>Local FS / S3]
+            WebPush[web-push<br/>VAPID + Web Push API]
+            EventPub[event-publisher<br/>tokio mpsc]
+            Importer[importer<br/>Daylio CSV / Generic]
+            Exporter[exporter<br/>ZIP + JSON]
+        end
+    end
+
+    subgraph Application["application (use cases)"]
+        EntryUC[Entry Use Cases<br/>create / update / delete / list<br/>filter / stats / calendar<br/>bulk delete / replace activity]
+        ActivityUC[Activity Use Cases<br/>CRUD / archive / rename<br/>set category]
+        UserUC[User Use Cases<br/>register / login / logout<br/>refresh / change password<br/>update profile / delete / clear data]
+        MediaUC[Media Use Cases<br/>upload / delete<br/>photo / voice memo]
+        PushUC[Push Use Cases<br/>subscribe / unsubscribe]
+        ImportUC[Import / Export<br/>import entries<br/>export user data]
+        ReminderUC[Reminder Use Cases<br/>CRUD / process due]
+    end
+
+    subgraph Domain["domain (pure business logic)"]
+        subgraph Entities
+            MoodEntry[MoodEntry<br/>aggregate root]
+            Activity[Activity]
+            User[User]
+            Reminder[Reminder]
+            PushSubscription[PushSubscription]
+            RefreshSession[RefreshSession]
+        end
+
+        subgraph ValueObjects["Value Objects"]
+            Mood[Mood<br/>1-5 scale]
+            Content[Content]
+            DateRange[DateRange]
+            ActivityName[ActivityName]
+            CategoryName[CategoryName]
+            DisplayName[DisplayName]
+            Timezone[Timezone]
+            ContentType[ContentType]
+            MediaUpload[MediaUpload]
+        end
+
+        subgraph Ports["Ports (async traits)"]
+            EntryPorts[MoodEntryCommandPort<br/>MoodEntryQueryPort]
+            ActivityPorts[ActivityCommandPort<br/>ActivityQueryPort]
+            UserPorts[UserCommandPort<br/>UserQueryPort]
+            ReminderPorts[ReminderCommandPort<br/>ReminderQueryPort<br/>ReminderSenderPort]
+            PushPorts[PushSubscriptionCommandPort<br/>PushSubscriptionQueryPort]
+            CascadePorts[CascadeDeletePort]
+            AuthPorts[AuthServicePort<br/>PasswordHasherPort<br/>RefreshSessionCommandPort<br/>RefreshSessionQueryPort]
+            MediaPort[MediaStoragePort]
+            EventPort[EventPublisherPort]
+            ImportExportPorts[ImportSourcePort<br/>ExportPort]
+        end
+
+        Services[MoodAnalyzerService<br/>average / frequency<br/>streak / correlation]
+        Events[Domain Events<br/>EntryCreated / Updated / Deleted<br/>ActivityCreated / Archived<br/>UserRegistered]
+    end
+
+    subgraph Config["config"]
+        ServerCfg[ServerConfig]
+        AuthCfg[AuthConfig]
+        PushCfg[PushConfig]
+        StorageCfg[StorageConfig]
+        EntryCfg[EntryConfig]
+        PresetCfg[PresetConfig]
+    end
+
+    subgraph ApiTypes["api-types"]
+        Requests[Request DTOs]
+        Responses[Response DTOs]
+    end
+
+    SPA -->|HTTP| HTTP
+    Mobile -->|HTTP| HTTP
+    Desktop -->|HTTP| HTTP
+
+    Main --> Factory
+    Main --> Scheduler
+    Factory --> HTTP
+    Factory --> SQLite
+    Factory --> Auth
+    Factory --> Storage
+    Factory --> WebPush
+    Factory --> EventPub
+    Factory --> Importer
+    Factory --> Exporter
+
+    Scheduler --> ReminderUC
+
+    HTTP --> EntryUC
+    HTTP --> ActivityUC
+    HTTP --> UserUC
+    HTTP --> MediaUC
+    HTTP --> PushUC
+    HTTP --> ImportUC
+    HTTP --> ReminderUC
+    HTTP --> ApiTypes
+
+    EntryUC --> EntryPorts
+    EntryUC --> MediaPort
+    EntryUC --> CascadePorts
+    EntryUC --> EventPort
+    ActivityUC --> ActivityPorts
+    ActivityUC --> EventPort
+    UserUC --> UserPorts
+    UserUC --> AuthPorts
+    UserUC --> MediaPort
+    UserUC --> CascadePorts
+    UserUC --> EntryPorts
+    MediaUC --> MediaPort
+    PushUC --> PushPorts
+    ImportUC --> ImportExportPorts
+    ImportUC --> EntryPorts
+    ImportUC --> ActivityPorts
+    ReminderUC --> ReminderPorts
+
+    EntryUC --> Services
+
+    SQLite -.->|implements| EntryPorts
+    SQLite -.->|implements| ActivityPorts
+    SQLite -.->|implements| UserPorts
+    SQLite -.->|implements| ReminderPorts
+    SQLite -.->|implements| PushPorts
+    SQLite -.->|implements| CascadePorts
+    SQLite -.->|implements| AuthPorts
+    Auth -.->|implements| AuthPorts
+    Storage -.->|implements| MediaPort
+    WebPush -.->|implements| ReminderPorts
+    EventPub -.->|implements| EventPort
+    Importer -.->|implements| ImportExportPorts
+    Exporter -.->|implements| ImportExportPorts
+
+    classDef domain fill:#2d4a22,stroke:#4a7c34,color:#fff
+    classDef application fill:#2a3d5c,stroke:#4a6fa5,color:#fff
+    classDef adapter fill:#4a3d2a,stroke:#a57a4a,color:#fff
+    classDef server fill:#3d2a4a,stroke:#7a4aa5,color:#fff
+    classDef client fill:#2a4a4a,stroke:#4aa5a5,color:#fff
+    classDef config fill:#4a4a2a,stroke:#a5a54a,color:#fff
+
+    class MoodEntry,Activity,User,Reminder,PushSubscription,RefreshSession,Mood,Content,DateRange,ActivityName,CategoryName,DisplayName,Timezone,ContentType,MediaUpload,EntryPorts,ActivityPorts,UserPorts,ReminderPorts,PushPorts,CascadePorts,AuthPorts,MediaPort,EventPort,ImportExportPorts,Services,Events domain
+    class EntryUC,ActivityUC,UserUC,MediaUC,PushUC,ImportUC,ReminderUC application
+    class HTTP,SQLite,Auth,Storage,WebPush,EventPub,Importer,Exporter adapter
+    class Main,Factory,Scheduler server
+    class SPA,Mobile,Desktop client
+    class ServerCfg,AuthCfg,PushCfg,StorageCfg,EntryCfg,PresetCfg config
+    class Requests,Responses adapter

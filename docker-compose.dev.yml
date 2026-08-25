@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - k-mood-data:/data
+      - ./config.dev.toml:/data/config.toml:ro
+    environment:
+      - RUST_LOG=debug
+    restart: unless-stopped
+
+volumes:
+  k-mood-data:

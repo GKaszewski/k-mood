@@ -1,0 +1,66 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/api-types",
+    "crates/config",
+    "crates/adapters/http-axum",
+    "crates/adapters/sqlite",
+    "crates/adapters/auth",
+    "crates/adapters/storage",
+    "crates/adapters/event-publisher",
+    "crates/adapters/importer",
+    "crates/adapters/exporter",
+    "crates/adapters/web-push",
+    "crates/server",
+]
+default-members = ["crates/server"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+[workspace.dependencies]
+domain = { path = "crates/domain" }
+application = { path = "crates/application" }
+api-types = { path = "crates/api-types" }
+config = { path = "crates/config" }
+http-axum = { path = "crates/adapters/http-axum" }
+sqlite = { path = "crates/adapters/sqlite" }
+auth = { path = "crates/adapters/auth" }
+storage = { path = "crates/adapters/storage" }
+event-publisher = { path = "crates/adapters/event-publisher" }
+importer = { path = "crates/adapters/importer" }
+exporter = { path = "crates/adapters/exporter" }
+web-push-adapter = { path = "crates/adapters/web-push" }
+csv = "1"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
+thiserror = "2"
+async-trait = "0.1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tower-http = { version = "0.7", features = ["cors", "trace", "fs"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
+email_address = "0.2"
+chrono-tz = "0.10"
+jsonwebtoken = { version = "11", features = ["aws_lc_rs"] }
+argon2 = { version = "0.5", features = ["std"] }
+object_store = { version = "0.14", features = ["aws"] }
+bytes = "1"
+base64 = "0.23"
+utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+opt-level = 3

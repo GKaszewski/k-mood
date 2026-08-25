@@ -1,0 +1,13 @@
+[package]
+name = "sqlite"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+config.workspace = true
+async-trait.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true

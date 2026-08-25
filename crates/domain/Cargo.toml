@@ -1,0 +1,16 @@
+[package]
+name = "domain"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+serde.workspace = true
+email_address.workspace = true
+tracing.workspace = true
+
+[features]
+test-helpers = []
