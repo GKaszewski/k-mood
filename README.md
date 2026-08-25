@@ -74,11 +74,17 @@ Copy `config.example.toml` to `config.toml` and adjust as needed.
 
 K-Mood supports Web Push notifications (works on iOS 16.4+ when added to Home Screen, Android, and desktop browsers). No Firebase or third-party service required.
 
-**1. Generate VAPID keys:**
+**1. Generate a VAPID private key** (base64url-encoded, 32 bytes):
 
 ```bash
-openssl ecparam -genkey -name prime256v1 -noout -out vapid_private.pem
-openssl ec -in vapid_private.pem -outform PEM 2>/dev/null | base64
+python3 -c "
+import subprocess, base64
+key = subprocess.check_output(
+    'openssl ecparam -genkey -name prime256v1 -noout 2>/dev/null | openssl ec -outform DER 2>/dev/null',
+    shell=True
+)
+print(base64.urlsafe_b64encode(key[7:39]).rstrip(b'=').decode())
+"
 ```
 
 **2. Add to `config.toml`:**
@@ -86,7 +92,7 @@ openssl ec -in vapid_private.pem -outform PEM 2>/dev/null | base64
 ```toml
 [push]
 enabled = true
-vapid_private_key = "<base64 output from step 1>"
+vapid_private_key = "<output from step 1>"
 vapid_subject = "mailto:you@example.com"
 ```
 

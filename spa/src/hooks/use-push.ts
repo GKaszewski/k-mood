@@ -13,6 +13,13 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return array
 }
 
+function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ""
+  for (const b of bytes) binary += String.fromCharCode(b)
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
 export function usePushNotifications() {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
@@ -59,8 +66,8 @@ export function usePushNotifications() {
 
       await push.subscribe({
         endpoint: sub.endpoint,
-        p256dh: btoa(String.fromCharCode(...new Uint8Array(key))),
-        auth: btoa(String.fromCharCode(...new Uint8Array(auth))),
+        p256dh: arrayBufferToBase64Url(key),
+        auth: arrayBufferToBase64Url(auth),
       })
     },
     onSuccess: () => setIsSubscribed(true),

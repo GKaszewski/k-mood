@@ -8,3 +8,4 @@ data/
 config.toml
 spa/node_modules/
 spa/dist/
+spa/.env

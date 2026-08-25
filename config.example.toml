@@ -38,5 +38,5 @@ allow_registration = true
 
 # [push]
 # enabled = true
-# vapid_private_key = "<base64-encoded PEM private key>"
+# vapid_private_key = "<base64url-encoded 32-byte EC private key>"
 # vapid_subject = "mailto:you@example.com"

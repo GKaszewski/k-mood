@@ -12,7 +12,7 @@ use domain::user::UserId;
 
 pub struct WebPushSender {
     client: IsahcWebPushClient,
-    vapid_private_key: Vec<u8>,
+    vapid_private_key: String,
     vapid_subject: String,
     subscription_query: Arc<dyn PushSubscriptionQueryPort>,
 }
@@ -32,14 +32,15 @@ impl WebPushSender {
             .as_deref()
             .ok_or_else(|| DomainError::InvalidInput("vapid_subject is required".into()))?;
 
-        let decoded = base64_decode(private_key)?;
+        VapidSignatureBuilder::from_base64_no_sub(private_key)
+            .map_err(|e| DomainError::InvalidInput(format!("invalid VAPID key: {e}")))?;
 
         let client = IsahcWebPushClient::new()
             .map_err(|e| DomainError::InvalidInput(format!("failed to create push client: {e}")))?;
 
         Ok(Self {
             client,
-            vapid_private_key: decoded,
+            vapid_private_key: private_key.to_string(),
             vapid_subject: subject.to_string(),
             subscription_query,
         })
@@ -51,21 +52,12 @@ impl WebPushSender {
             .as_deref()
             .ok_or_else(|| DomainError::InvalidInput("vapid_private_key is required".into()))?;
 
-        let decoded = base64_decode(private_key)?;
-
-        let sig_builder = VapidSignatureBuilder::from_pem_no_sub(std::io::Cursor::new(&decoded))
+        let sig_builder = VapidSignatureBuilder::from_base64_no_sub(private_key)
             .map_err(|e| DomainError::InvalidInput(format!("invalid VAPID key: {e}")))?;
 
         let public_key = sig_builder.get_public_key();
         Ok(base64_url_encode(&public_key))
     }
-}
-
-fn base64_decode(input: &str) -> Result<Vec<u8>, DomainError> {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD
-        .decode(input)
-        .map_err(|e| DomainError::InvalidInput(format!("invalid base64: {e}")))
 }
 
 fn base64_url_encode(input: &[u8]) -> String {
@@ -91,10 +83,11 @@ impl domain::ports::ReminderSenderPort for WebPushSender {
         let payload_str = payload.to_string();
 
         for sub in &subscriptions {
-            let subscription_info = SubscriptionInfo::new(sub.endpoint(), sub.p256dh(), sub.auth());
+            let subscription_info =
+                SubscriptionInfo::new(sub.endpoint(), sub.p256dh(), sub.auth());
 
-            let mut sig_builder = VapidSignatureBuilder::from_pem(
-                std::io::Cursor::new(&self.vapid_private_key),
+            let mut sig_builder = VapidSignatureBuilder::from_base64(
+                &self.vapid_private_key,
                 &subscription_info,
             )
             .map_err(|e| {
