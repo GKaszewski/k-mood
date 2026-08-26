@@ -31,6 +31,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("push notifications enabled, reminder scheduler started");
     }
 
+    spawn_session_cleanup(context.state.refresh_session_command.clone());
+
     let router = http_axum::router::build_router(context.state);
 
     let addr = format!("{}:{}", config.server.host, config.server.port);
@@ -70,6 +72,25 @@ fn spawn_reminder_scheduler(
                     }
                 }
                 Err(e) => tracing::error!(error = %e, "reminder processing failed"),
+            }
+        }
+    });
+}
+
+fn spawn_session_cleanup(
+    refresh_session_command: std::sync::Arc<dyn domain::ports::RefreshSessionCommandPort>,
+) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            match refresh_session_command.delete_expired().await {
+                Ok(deleted) => {
+                    if deleted > 0 {
+                        tracing::info!(deleted, "expired refresh sessions cleaned up");
+                    }
+                }
+                Err(e) => tracing::error!(error = %e, "refresh session cleanup failed"),
             }
         }
     });
