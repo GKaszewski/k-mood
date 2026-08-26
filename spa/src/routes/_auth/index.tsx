@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { Card, CardContent } from "@/components/ui/card"
+import { Footprints } from "lucide-react"
 import { MoodBadge } from "@/components/mood/mood-badge"
 import { EntryList } from "@/components/entry/entry-list"
 import { useEntries, useMoodStats } from "@/hooks/use-entries"
+import { byKind, useDailyMetrics } from "@/hooks/use-metrics"
 import { useAuth } from "@/hooks/use-auth"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -15,6 +17,9 @@ function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useMoodStats()
 
   const today = format(new Date(), "EEEE, MMMM d")
+  const todaysDate = format(new Date(), "yyyy-MM-dd")
+  const { data: todaysMetrics } = useDailyMetrics(todaysDate, todaysDate)
+  const steps = byKind(todaysMetrics).get("steps")
   const latestMood = entries?.[0]?.mood
 
   return (
@@ -34,6 +39,20 @@ function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      <Link to="/metrics">
+        <Card>
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-2">
+              <Footprints className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">Steps today</span>
+            </div>
+            <span className="text-sm font-semibold">
+              {steps ? steps.value.toLocaleString() : "Add"}
+            </span>
+          </CardContent>
+        </Card>
+      </Link>
 
       {statsLoading ? (
         <Skeleton className="h-24" />

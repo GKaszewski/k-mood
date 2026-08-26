@@ -2,11 +2,11 @@ import { useState, useRef } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useImport } from "@/hooks/use-import-export"
+import { useImport, useRestore } from "@/hooks/use-import-export"
 import { ImportWizard } from "@/components/import/import-wizard"
 import { WizardResult } from "@/components/import/wizard-result"
 import { Upload, FileUp } from "lucide-react"
-import type { ImportResultResponse } from "@/api/schema"
+import type { ImportResultResponse, RestoreOutcomeResponse } from "@/api/schema"
 
 export const Route = createFileRoute("/_auth/import")({
   component: ImportPage,
@@ -18,22 +18,30 @@ function ImportPage() {
   const [source, setSource] = useState<ImportSource | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [result, setResult] = useState<ImportResultResponse | null>(null)
+  const [restored, setRestored] = useState<RestoreOutcomeResponse | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importData = useImport()
+  const restoreBackup = useRestore()
+  const working = importData.isPending || restoreBackup.isPending
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (selected) {
       setFile(selected)
       setResult(null)
+      setRestored(null)
     }
   }
 
   const handleImport = () => {
     if (!file) return
-    importData.mutate(file, {
-      onSuccess: (data) => setResult(data),
-    })
+
+    if (source === "kmood") {
+      restoreBackup.mutate(file, { onSuccess: setRestored })
+      return
+    }
+
+    importData.mutate(file, { onSuccess: setResult })
   }
 
   return (
@@ -53,7 +61,7 @@ function ImportPage() {
             />
             <SourceOption
               label="k-mood backup"
-              description="Restore from a k-mood ZIP export"
+              description="Restore a complete backup, with everything in it"
               onClick={() => setSource("kmood")}
             />
             <SourceOption
@@ -65,7 +73,7 @@ function ImportPage() {
         </Card>
       )}
 
-      {(source === "daylio" || source === "kmood") && !result && (
+      {(source === "daylio" || source === "kmood") && !result && !restored && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">
@@ -77,8 +85,8 @@ function ImportPage() {
           <CardContent className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
               {source === "daylio"
-                ? "Export your data from Daylio (Settings → Export → CSV) and upload the file here."
-                : "Upload a previously exported k-mood ZIP file to restore your data."}
+                ? "Export your data from Daylio (Settings → Export → CSV) and upload the file here. Daylio records the time you logged but not which timezone you were in, so times are read as your own — 8 PM in the file becomes 8 PM where you live. Set your timezone in settings first."
+                : "Upload a complete backup to restore it. Everything in it comes back: entries with every dimension, daily metrics, cycle records, activities, reminders and settings. A restore adds to this account rather than replacing it."}
             </p>
 
             <input
@@ -102,15 +110,19 @@ function ImportPage() {
               <Button
                 size="lg"
                 onClick={handleImport}
-                disabled={importData.isPending}
+                disabled={working}
                 className="w-full"
               >
-                {importData.isPending ? (
-                  "Importing..."
+                {working ? (
+                  source === "kmood" ? (
+                    "Restoring..."
+                  ) : (
+                    "Importing..."
+                  )
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Import
+                    {source === "kmood" ? "Restore" : "Import"}
                   </>
                 )}
               </Button>
@@ -123,7 +135,9 @@ function ImportPage() {
 
       {result && <WizardResult result={result} />}
 
-      {source && !result && (
+      {restored && <RestoreSummary outcome={restored} />}
+
+      {source && !result && !restored && (
         <Button
           variant="ghost"
           onClick={() => {
@@ -156,5 +170,45 @@ function SourceOption({
       <span className="text-sm font-medium">{label}</span>
       <span className="text-xs text-muted-foreground">{description}</span>
     </Button>
+  )
+}
+
+function RestoreSummary({ outcome }: { outcome: RestoreOutcomeResponse }) {
+  const counts = [
+    ["Entries", outcome.entries],
+    ["Daily metrics", outcome.metrics],
+    ["Cycle records", outcome.cycleStarts],
+    ["Activities", outcome.activities],
+    ["Reminders", outcome.reminders],
+    ["Photos and voice memos", outcome.media],
+  ] as const
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">Restored</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {counts.map(([label, count]) => (
+          <div key={label} className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="font-medium tabular-nums">{count}</span>
+          </div>
+        ))}
+
+        {outcome.unreadable.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1 border-l-2 border-destructive/40 pl-2">
+            <span className="text-xs font-medium">
+              Could not be read, and was not restored:
+            </span>
+            {outcome.unreadable.map((reason) => (
+              <span key={reason} className="text-[10px] text-muted-foreground">
+                {reason}
+              </span>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

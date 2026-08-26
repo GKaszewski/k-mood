@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { AppShell } from "@/components/layout/app-shell"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useEnsureTimezone } from "@/hooks/use-timezone"
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: () => {
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/_auth")({
 })
 
 function AuthLayout() {
+  useEnsureTimezone()
+
   return (
     <AppShell>
       <Outlet />

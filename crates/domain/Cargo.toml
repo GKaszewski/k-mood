@@ -8,6 +8,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+chrono-tz.workspace = true
 serde.workspace = true
 email_address.workspace = true
 tracing.workspace = true

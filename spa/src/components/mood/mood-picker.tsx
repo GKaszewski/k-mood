@@ -1,4 +1,5 @@
-import { MOODS, type MoodValue } from "@/lib/mood"
+import { MOODS } from "@/lib/mood"
+import type { MoodValue } from "@/lib/mood"
 import { cn } from "@/lib/utils"
 
 interface MoodPickerProps {

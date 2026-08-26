@@ -1,3 +1,4 @@
+import { contentOf } from "@/lib/dimensions"
 import { format } from "date-fns"
 import { Link } from "@tanstack/react-router"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,9 +24,9 @@ export function EntryCard({ entry }: EntryCardProps) {
                 {format(date, "h:mm a")}
               </span>
             </div>
-            {entry.content && (
+            {contentOf(entry) && (
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                {entry.content}
+                {contentOf(entry)}
               </p>
             )}
           </div>

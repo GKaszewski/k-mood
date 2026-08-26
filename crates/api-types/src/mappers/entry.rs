@@ -1,7 +1,8 @@
 use chrono::Utc;
 
 use config::EntryConfig;
-use domain::entry::{Content, DateRange, Mood, MoodEntry, MoodEntryId};
+use domain::dimension::{ComposedEntry, DimensionValue};
+use domain::entry::{DateRange, Mood, MoodEntryId};
 use domain::user::UserId;
 
 use application::entry::commands::{CreateEntryCommand, UpdateEntryCommand};
@@ -9,11 +10,12 @@ use application::entry::queries::{
     FilterByActivityQuery, FilterByMoodQuery, ListEntriesQuery, MoodStatsQuery,
 };
 
+use crate::dimension::DimensionPayload;
 use crate::errors::ApiValidationError;
 use crate::requests::{CreateEntryRequest, DateRangeParams, ListEntriesParams, UpdateEntryRequest};
 use crate::responses::EntryResponse;
 
-use super::shared::{parse_datetime, parse_uuids_as, validate_content_length};
+use super::shared::{parse_datetime, validate_content_length};
 
 impl CreateEntryRequest {
     pub fn into_command(
@@ -26,31 +28,13 @@ impl CreateEntryRequest {
             Some(dt) => parse_datetime(&dt)?,
             None => Utc::now().fixed_offset(),
         };
-        let content = parse_content(self.content, config)?;
-        let activities = parse_uuids_as(
-            &self.activity_ids.unwrap_or_default(),
-            config.max_activities_per_entry,
-            "activities",
-        )?;
-        let photos = parse_uuids_as(
-            &self.photo_ids.unwrap_or_default(),
-            config.max_photos,
-            "photos",
-        )?;
-        let voice_memos = parse_uuids_as(
-            &self.voice_memo_ids.unwrap_or_default(),
-            config.max_voice_memos,
-            "voice memos",
-        )?;
+        let dimensions = parse_dimensions(self.dimensions, config)?;
 
         Ok(CreateEntryCommand {
             user_id,
             mood,
             logged_at,
-            activities,
-            content,
-            photos,
-            voice_memos,
+            dimensions,
         })
     }
 }
@@ -62,35 +46,14 @@ impl UpdateEntryRequest {
         config: &EntryConfig,
     ) -> Result<UpdateEntryCommand, ApiValidationError> {
         let mood = Mood::try_from(self.mood)?;
-        let logged_at = match self.logged_at {
-            Some(dt) => parse_datetime(&dt)?,
-            None => Utc::now().fixed_offset(),
-        };
-        let content = parse_content(self.content, config)?;
-        let activities = parse_uuids_as(
-            &self.activity_ids.unwrap_or_default(),
-            config.max_activities_per_entry,
-            "activities",
-        )?;
-        let photos = parse_uuids_as(
-            &self.photo_ids.unwrap_or_default(),
-            config.max_photos,
-            "photos",
-        )?;
-        let voice_memos = parse_uuids_as(
-            &self.voice_memo_ids.unwrap_or_default(),
-            config.max_voice_memos,
-            "voice memos",
-        )?;
+        let logged_at = self.logged_at.as_deref().map(parse_datetime).transpose()?;
+        let dimensions = parse_dimensions(self.dimensions, config)?;
 
         Ok(UpdateEntryCommand {
             entry_id,
             mood,
             logged_at,
-            activities,
-            content,
-            photos,
-            voice_memos,
+            dimensions,
         })
     }
 }
@@ -147,11 +110,9 @@ impl DateRangeParams {
     }
 }
 
-impl From<MoodEntry> for EntryResponse {
-    fn from(entry: MoodEntry) -> Self {
-        let photo_ids: Vec<uuid::Uuid> = entry.photos().iter().map(|p| p.value()).collect();
-        let voice_memo_ids: Vec<uuid::Uuid> =
-            entry.voice_memos().iter().map(|v| v.value()).collect();
+impl From<ComposedEntry> for EntryResponse {
+    fn from(composed: ComposedEntry) -> Self {
+        let entry = &composed.entry;
 
         Self {
             id: entry.id().value(),
@@ -159,33 +120,61 @@ impl From<MoodEntry> for EntryResponse {
             mood: entry.mood().value(),
             mood_label: format!("{:?}", entry.mood()),
             logged_at: *entry.logged_at(),
-            activities: entry.activities().iter().map(|a| a.value()).collect(),
-            content: entry.content().map(|c| c.value().to_string()),
-            photo_urls: photo_ids
+            photo_urls: composed
+                .photos()
                 .iter()
-                .map(|id| format!("/api/v1/media/photos/{id}"))
+                .map(|id| format!("/api/v1/media/photos/{}", id.value()))
                 .collect(),
-            photos: photo_ids,
-            voice_memo_urls: voice_memo_ids
+            voice_memo_urls: composed
+                .voice_memos()
                 .iter()
-                .map(|id| format!("/api/v1/media/voice-memos/{id}"))
+                .map(|id| format!("/api/v1/media/voice-memos/{}", id.value()))
                 .collect(),
-            voice_memos: voice_memo_ids,
+            dimensions: composed.dimensions.iter().map(Into::into).collect(),
             created_at: *entry.created_at(),
             updated_at: *entry.updated_at(),
         }
     }
 }
 
-fn parse_content(
-    content: Option<String>,
+fn parse_dimensions(
+    payloads: Option<Vec<DimensionPayload>>,
     config: &EntryConfig,
-) -> Result<Option<Content>, ApiValidationError> {
-    content
-        .filter(|s| !s.trim().is_empty())
-        .map(|text| {
-            validate_content_length(&text, config.max_content_length)?;
-            Content::new(text).map_err(ApiValidationError::from)
+) -> Result<Vec<DimensionValue>, ApiValidationError> {
+    payloads
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|payload| !payload.is_empty())
+        .map(|payload| {
+            within_limits(&payload, config)?;
+            payload.into_dimension()
         })
-        .transpose()
+        .collect()
+}
+
+fn within_limits(
+    payload: &DimensionPayload,
+    config: &EntryConfig,
+) -> Result<(), ApiValidationError> {
+    let (held, most, label) = match payload {
+        DimensionPayload::Content { text } => {
+            return validate_content_length(text, config.max_content_length);
+        }
+        DimensionPayload::Activities { ids } => {
+            (ids.len(), config.max_activities_per_entry, "activities")
+        }
+        DimensionPayload::Photos { ids } => (ids.len(), config.max_photos, "photos"),
+        DimensionPayload::VoiceMemos { ids } => (ids.len(), config.max_voice_memos, "voice memos"),
+        DimensionPayload::Location { .. }
+        | DimensionPayload::Song { .. }
+        | DimensionPayload::Weather { .. } => return Ok(()),
+    };
+
+    if held > most {
+        return Err(ApiValidationError::Invalid(format!(
+            "too many {label}, maximum is {most}"
+        )));
+    }
+
+    Ok(())
 }

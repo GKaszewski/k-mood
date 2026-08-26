@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
+use domain::dimension::ComposedEntry;
 use domain::entry::DateRange;
-use domain::ports::{CascadeDeletePort, MediaStoragePort};
+use domain::ports::{CascadeDeletePort, EntryDimensionPort, MediaStoragePort, MoodEntryQueryPort};
 use domain::user::UserId;
 
+use crate::entry::composition::EntryComposer;
 use crate::errors::ApplicationError;
+use crate::media::cleanup::delete_media_for;
 
 pub struct Deps {
     pub cascade: Arc<dyn CascadeDeletePort>,
+    pub query: Arc<dyn MoodEntryQueryPort>,
+    pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
     pub media_storage: Arc<dyn MediaStoragePort>,
 }
 
@@ -17,23 +22,26 @@ pub async fn execute(
     range: &DateRange,
     deps: &Deps,
 ) -> Result<u64, ApplicationError> {
-    let entries = deps
+    let media = media_of_entries_about_to_be_deleted(&user_id, range, deps).await?;
+
+    let deleted = deps
         .cascade
         .delete_entries_in_range(&user_id, range)
         .await?;
 
-    for entry in &entries {
-        for photo_id in entry.photos() {
-            if let Err(e) = deps.media_storage.delete_photo(photo_id).await {
-                tracing::warn!(%e, "failed to delete photo blob");
-            }
-        }
-        for memo_id in entry.voice_memos() {
-            if let Err(e) = deps.media_storage.delete_voice_memo(memo_id).await {
-                tracing::warn!(%e, "failed to delete voice memo blob");
-            }
-        }
-    }
+    delete_media_for(&media, &deps.media_storage).await;
 
-    Ok(entries.len() as u64)
+    Ok(deleted.len() as u64)
+}
+
+async fn media_of_entries_about_to_be_deleted(
+    user_id: &UserId,
+    range: &DateRange,
+    deps: &Deps,
+) -> Result<Vec<ComposedEntry>, ApplicationError> {
+    let doomed = deps.query.find_by_date_range(user_id, range).await?;
+
+    EntryComposer::new(deps.dimensions.clone())
+        .compose(doomed)
+        .await
 }

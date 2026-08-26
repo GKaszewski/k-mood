@@ -6,8 +6,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query"
 import { getRouter } from "./router"
-import { toast } from "@/components/ui/toast"
-import { Toaster } from "@/components/ui/toast"
+import { toast, Toaster } from "@/components/ui/toast"
 import { ApiError } from "@/api/client"
 import "./styles.css"
 

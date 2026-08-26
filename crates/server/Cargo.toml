@@ -8,6 +8,7 @@ name = "k-mood"
 path = "src/main.rs"
 
 [dependencies]
+bootstrap.workspace = true
 domain.workspace = true
 axum.workspace = true
 application.workspace = true
@@ -18,6 +19,9 @@ auth.workspace = true
 storage.workspace = true
 event-publisher.workspace = true
 importer.workspace = true
+crypto.workspace = true
+music.workspace = true
+reqwest.workspace = true
 exporter.workspace = true
 web-push-adapter.workspace = true
 serde.workspace = true

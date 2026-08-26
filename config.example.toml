@@ -1,3 +1,8 @@
+# Every key here has an environment twin: prefix KMOOD_, a double underscore for
+# each section, the key as it is spelled below. KMOOD_SERVER__PORT sets server.port,
+# KMOOD_SERVER__CORS__ALLOW_ANY_ORIGIN sets server.cors.allow_any_origin. The
+# environment wins over this file, so secrets can stay out of it entirely.
+
 [server]
 host = "0.0.0.0"
 port = 3000
@@ -40,3 +45,30 @@ allow_registration = true
 # enabled = true
 # vapid_private_key = "<base64url-encoded 32-byte EC private key>"
 # vapid_subject = "mailto:you@example.com"
+
+[provider]
+# Base64-encoded 32-byte key that encrypts every user's music-service credential
+# at rest. Generate with: openssl rand -base64 32
+# Absent: provider connections are unavailable and the server logs this at startup.
+# Malformed: the server refuses to start rather than storing credentials the
+# operator believes are encrypted.
+# encryption_key = "<base64url-encoded 32-byte key>"
+
+[analysis]
+minimum_sample_size = 30
+false_discovery_rate = 0.10
+
+[import]
+maximum_days_per_import = 90
+rejections_kept = 200
+
+[worker]
+poll_seconds = 15
+sweep_seconds = 900
+session_cleanup_seconds = 3600
+reminder_seconds = 60
+jobs_per_poll = 20
+enqueued_per_sweep = 200
+most_attempts = 5
+stalled_after_seconds = 300
+look_up_weather = true

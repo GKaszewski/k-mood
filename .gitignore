@@ -8,3 +8,4 @@ config.toml
 .DS_Store
 spa/node_modules/
 spa/dist/
+.claude/

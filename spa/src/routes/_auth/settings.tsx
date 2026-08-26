@@ -3,6 +3,10 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SubsonicCard } from "@/components/settings/subsonic-card"
+import { ApiTokensCard } from "@/components/settings/api-tokens-card"
+import { RejectionsCard } from "@/components/settings/rejections-card"
+import { CycleCard } from "@/components/settings/cycle-card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -79,6 +83,14 @@ function SettingsPage() {
         displayName={user?.displayName ?? null}
         timezone={user?.timezone ?? null}
       />
+
+      <SubsonicCard />
+
+      <CycleCard />
+
+      <ApiTokensCard />
+
+      <RejectionsCard />
 
       <Card>
         <CardHeader>

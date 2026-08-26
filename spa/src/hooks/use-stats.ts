@@ -49,7 +49,7 @@ export function usePeriodEntries(period: "week" | "month" | "year" | "all") {
         const days = await entries.calendar(range)
         return days.map((day) => ({
           loggedAt: day.date + "T12:00:00+00:00",
-          mood: day.dominantMood ?? 3,
+          mood: day.dayMood ?? 3,
         }))
       }
 

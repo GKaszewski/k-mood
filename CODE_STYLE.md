@@ -215,20 +215,15 @@ Constants are only for true invariants that never change. Tunable values belong 
 
 ## Comments
 
-Zero comments unless explaining **why** something non-obvious is done.
+No comments. Not even to explain why — a comment is noise that drifts out of date while the code moves on.
 
-```rust
-// YES — explains a non-obvious constraint
-// BLAKE3 hash, not SHA-256, because iroh uses BLAKE3 for content addressing
-let hash = blake3::hash(&audio_data);
+When something non-obvious needs saying, put it somewhere that cannot rot silently:
 
-// NO — restates what the code does
-// Create a new track with the given metadata
-let track = Track::new(title, artist_id, duration, hash);
+- **A name.** Rename the function, the variable, or the type until the reason is visible in the code.
+- **A test.** A constraint worth a comment is worth a test that fails when someone breaks it. `media_is_resolved_before_the_cascade_runs` outlives any note explaining why the order matters.
+- **An ADR.** Architectural reasoning belongs in `docs/adr/`, where it is versioned and discoverable.
 
-// NO — references the task/ticket
-// Added for thesis requirement §3.2
-```
+This applies to doc comments too.
 
 ## Dependencies
 
@@ -240,23 +235,18 @@ let track = Track::new(title, artist_id, duration, hash);
 - Adapters: free to pull in platform crates (`axum`, `sqlx`, `iroh`, `nats`, etc.)
 - Bootstrap: wiring only
 
-## Generics Over Trait Objects
+## Trait Objects for Ports
 
-Use generics (static dispatch) for ports, not `dyn Trait`:
+Ports are `dyn` behind `Arc`. Static dispatch is not worth the ergonomic cost here — use cases hold their dependencies as trait objects:
 
 ```rust
-// YES — zero-cost, monomorphized
-pub struct StreamTrackUseCase<T: P2pTransportPort, R: TrackRepositoryPort> {
-    transport: T,
-    repository: R,
-}
-
-// NO — heap allocation, dynamic dispatch overhead
-pub struct StreamTrackUseCase {
-    transport: Box<dyn P2pTransportPort>,
-    repository: Box<dyn TrackRepositoryPort>,
+pub struct Deps {
+    pub entries: Arc<dyn MoodEntryCommandPort>,
+    pub events: Arc<dyn EventPublisherPort>,
 }
 ```
+
+Prefer a closed enum over `dyn` only where exhaustiveness is the point — when adding a variant must force every consumer to handle it (`MetricKind`, `CorrelationStrategy`). That is a decision about compiler-enforced coverage, not about dispatch cost.
 
 ## Testing
 
@@ -282,6 +272,16 @@ crates/domain/
     └── track/
         └── track_test.rs
 ```
+
+### Fakes Must Not Be Kinder Than Production
+
+A fake that is more forgiving than the real adapter turns a test into a lie: it passes whichever way the code is written, which is worse than having no test. Two rules follow.
+
+**A fake must reproduce the constraints the database enforces.** SQLite removes dimension rows through `ON DELETE CASCADE`, so `InMemoryStore`'s cascade clears the dimension stores registered with it via `cascades_to`. Without that, the ordering requirement in `delete_entries_by_date_range` — resolve media *before* the cascade, or every blob is orphaned — could not be tested at all.
+
+**A fake must be able to fail.** Every port whose failure is meant to degrade rather than propagate needs a fake that refuses: `FakeMediaStorage::refusing_to_delete`, `FakeNowPlaying::failing`, `FakeRecordingLookup::failing`, `FakeWeatherLookup::failing`, `RefusingRejectionTrace`, `RefusingApiTokenStore`. A best-effort path with no failing test is a path that has never run.
+
+When a claim cannot be observed through the fake, move the test to where the real thing runs rather than asserting it against the fake's own behaviour.
 
 ### Test Naming
 

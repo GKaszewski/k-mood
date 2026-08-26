@@ -19,6 +19,7 @@ async fn clears_all_user_data() {
     ReminderCommandPort::save(&*store, &reminder).await.unwrap();
 
     let deps = clear_data::Deps {
+        dimensions: vec![],
         entry_query: store.clone(),
         cascade: store.clone(),
         media_storage: store.clone(),

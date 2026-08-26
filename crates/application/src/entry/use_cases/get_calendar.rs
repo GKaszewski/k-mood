@@ -1,22 +1,34 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use chrono::NaiveDate;
-
-use domain::entry::{DateRange, Mood, MoodEntry};
-use domain::ports::MoodEntryQueryPort;
+use domain::cycle::CycleDay;
+use domain::dimension::ComposedEntry;
+use domain::entry::{Date, DateRange, DayMood};
+use domain::ports::{
+    CycleStartQueryPort, EntryDimensionPort, MoodEntryQueryPort, UserPreferencesQueryPort,
+    UserQueryPort,
+};
 use domain::user::UserId;
 
+use crate::cycle::use_cases::read_cycle::calendar_of;
+use crate::day::{date_of, timezone_for};
+use crate::entry::composition::EntryComposer;
 use crate::errors::ApplicationError;
+use crate::user::preferences::preferences_of;
 
 pub struct CalendarDay {
-    pub date: NaiveDate,
-    pub entries: Vec<MoodEntry>,
-    pub dominant_mood: Option<Mood>,
+    pub date: Date,
+    pub entries: Vec<ComposedEntry>,
+    pub day_mood: Option<DayMood>,
+    pub cycle_day: Option<CycleDay>,
 }
 
 pub struct Deps {
     pub query: Arc<dyn MoodEntryQueryPort>,
+    pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
+    pub cycles: Arc<dyn CycleStartQueryPort>,
+    pub preferences: Arc<dyn UserPreferencesQueryPort>,
+    pub users: Arc<dyn UserQueryPort>,
 }
 
 #[tracing::instrument(skip(deps))]
@@ -26,21 +38,34 @@ pub async fn execute(
     deps: &Deps,
 ) -> Result<Vec<CalendarDay>, ApplicationError> {
     let entries = deps.query.find_by_date_range(&user_id, &range).await?;
+    let entries = EntryComposer::new(deps.dimensions.clone())
+        .compose(entries)
+        .await?;
 
-    let mut by_date: BTreeMap<NaiveDate, Vec<MoodEntry>> = BTreeMap::new();
+    let timezone = timezone_for(&user_id, &deps.users).await?;
+
+    let mut by_date: BTreeMap<Date, Vec<ComposedEntry>> = BTreeMap::new();
     for entry in entries {
-        let date = entry.logged_at().date_naive();
+        let date = date_of(&entry.entry, &timezone);
         by_date.entry(date).or_default().push(entry);
     }
+
+    let cycles = tracked_cycle(&user_id, deps).await?;
 
     let days = by_date
         .into_iter()
         .map(|(date, entries)| {
-            let dominant_mood = find_dominant_mood(&entries);
+            let day_mood = day_mood_of(&entries);
+            let cycle_day = cycles
+                .as_ref()
+                .and_then(|calendar| calendar.position_on(&date))
+                .map(|position| position.day());
+
             CalendarDay {
                 date,
                 entries,
-                dominant_mood,
+                day_mood,
+                cycle_day,
             }
         })
         .collect();
@@ -48,21 +73,21 @@ pub async fn execute(
     Ok(days)
 }
 
-fn find_dominant_mood(entries: &[MoodEntry]) -> Option<Mood> {
-    if entries.is_empty() {
-        return None;
+async fn tracked_cycle(
+    user_id: &domain::user::UserId,
+    deps: &Deps,
+) -> Result<Option<domain::cycle::CycleCalendar>, ApplicationError> {
+    let preferences = preferences_of(user_id, &deps.preferences).await?;
+
+    if !preferences.tracks_cycle() {
+        return Ok(None);
     }
 
-    let mut counts = [0u32; 5];
-    for entry in entries {
-        counts[entry.mood().value() as usize - 1] += 1;
-    }
+    Ok(Some(calendar_of(user_id, &deps.cycles).await?))
+}
 
-    let max_index = counts
-        .iter()
-        .enumerate()
-        .max_by_key(|(_, count)| *count)
-        .map(|(i, _)| i)?;
+fn day_mood_of(entries: &[ComposedEntry]) -> Option<DayMood> {
+    let moods: Vec<_> = entries.iter().map(|entry| entry.entry.mood()).collect();
 
-    Mood::try_from(max_index as u8 + 1).ok()
+    DayMood::of(&moods)
 }

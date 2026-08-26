@@ -41,3 +41,33 @@ macro_rules! uuid_id {
 }
 
 pub(crate) use uuid_id;
+
+macro_rules! bounded_metric {
+    ($name:ident, $inner:ty, $min:expr, $max:expr, $label:literal) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name($inner);
+
+        impl $name {
+            pub fn new(value: $inner) -> Result<Self, crate::errors::DomainError> {
+                if !($min..=$max).contains(&value) {
+                    return Err(crate::errors::DomainError::InvalidInput(format!(
+                        concat!($label, " must be between {} and {}, got {}"),
+                        $min, $max, value
+                    )));
+                }
+
+                Ok(Self(value))
+            }
+
+            pub fn from_persistence(value: $inner) -> Self {
+                Self(value)
+            }
+
+            pub fn value(&self) -> $inner {
+                self.0
+            }
+        }
+    };
+}
+
+pub(crate) use bounded_metric;

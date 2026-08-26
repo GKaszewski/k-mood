@@ -35,10 +35,11 @@ function CalendarPage() {
     : false
   const canGoForward = isBefore(startOfMonth(month), startOfMonth(new Date()))
 
-  const selectedEntries = selectedDate
-    ? (days?.find((d) => isSameDay(new Date(d.date), selectedDate))?.entries ??
-      [])
-    : []
+  const selectedDay = selectedDate
+    ? days?.find((d) => isSameDay(new Date(d.date), selectedDate))
+    : undefined
+  const selectedEntries = selectedDay?.entries ?? []
+  const selectedCycleDay = selectedDay?.cycleDay ?? null
 
   return (
     <div className="flex flex-col gap-4 py-6">
@@ -75,8 +76,13 @@ function CalendarPage() {
 
       {selectedDate && (
         <section>
-          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+          <h2 className="mb-2 flex items-baseline gap-2 text-sm font-medium text-muted-foreground">
             {format(selectedDate, "EEEE, MMMM d")}
+            {selectedCycleDay !== null && (
+              <span className="text-xs font-normal">
+                cycle day {selectedCycleDay}
+              </span>
+            )}
           </h2>
           {selectedEntries.length > 0 ? (
             <div className="flex flex-col gap-2">
@@ -117,8 +123,8 @@ function MoodCalendarGrid({
 
   const moodMap = new Map<string, number>()
   for (const day of days) {
-    if (day.dominantMood) {
-      moodMap.set(day.date, day.dominantMood)
+    if (day.mood) {
+      moodMap.set(day.date, day.mood)
     }
   }
 

@@ -8,198 +8,210 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root"
-import { Route as AuthRouteImport } from "./routes/_auth"
-import { Route as LoginRouteImport } from "./routes/login"
-import { Route as RegisterRouteImport } from "./routes/register"
-import { Route as AuthIndexRouteImport } from "./routes/_auth/index"
-import { Route as AuthActivitiesRouteImport } from "./routes/_auth/activities"
-import { Route as AuthAddRouteImport } from "./routes/_auth/add"
-import { Route as AuthCalendarRouteImport } from "./routes/_auth/calendar"
-import { Route as AuthDiaryRouteImport } from "./routes/_auth/diary"
-import { Route as AuthExportRouteImport } from "./routes/_auth/export"
-import { Route as AuthImportRouteImport } from "./routes/_auth/import"
-import { Route as AuthRemindersRouteImport } from "./routes/_auth/reminders"
-import { Route as AuthSettingsRouteImport } from "./routes/_auth/settings"
-import { Route as AuthStatsRouteImport } from "./routes/_auth/stats"
-import { Route as AuthEditIdRouteImport } from "./routes/_auth/edit.$id"
-import { Route as AuthEntryIdRouteImport } from "./routes/_auth/entry.$id"
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as AuthIndexRouteImport } from './routes/_auth/index'
+import { Route as AuthActivitiesRouteImport } from './routes/_auth/activities'
+import { Route as AuthAddRouteImport } from './routes/_auth/add'
+import { Route as AuthCalendarRouteImport } from './routes/_auth/calendar'
+import { Route as AuthDiaryRouteImport } from './routes/_auth/diary'
+import { Route as AuthExportRouteImport } from './routes/_auth/export'
+import { Route as AuthImportRouteImport } from './routes/_auth/import'
+import { Route as AuthMetricsRouteImport } from './routes/_auth/metrics'
+import { Route as AuthRemindersRouteImport } from './routes/_auth/reminders'
+import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
+import { Route as AuthStatsRouteImport } from './routes/_auth/stats'
+import { Route as AuthEditIdRouteImport } from './routes/_auth/edit.$id'
+import { Route as AuthEntryIdRouteImport } from './routes/_auth/entry.$id'
 
 const AuthRoute = AuthRouteImport.update({
-  id: "/_auth",
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
-  id: "/login",
-  path: "/login",
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
-  id: "/register",
-  path: "/register",
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthIndexRoute = AuthIndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthActivitiesRoute = AuthActivitiesRouteImport.update({
-  id: "/activities",
-  path: "/activities",
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthAddRoute = AuthAddRouteImport.update({
-  id: "/add",
-  path: "/add",
+  id: '/add',
+  path: '/add',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthCalendarRoute = AuthCalendarRouteImport.update({
-  id: "/calendar",
-  path: "/calendar",
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthDiaryRoute = AuthDiaryRouteImport.update({
-  id: "/diary",
-  path: "/diary",
+  id: '/diary',
+  path: '/diary',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthExportRoute = AuthExportRouteImport.update({
-  id: "/export",
-  path: "/export",
+  id: '/export',
+  path: '/export',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthImportRoute = AuthImportRouteImport.update({
-  id: "/import",
-  path: "/import",
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthMetricsRoute = AuthMetricsRouteImport.update({
+  id: '/metrics',
+  path: '/metrics',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthRemindersRoute = AuthRemindersRouteImport.update({
-  id: "/reminders",
-  path: "/reminders",
+  id: '/reminders',
+  path: '/reminders',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthSettingsRoute = AuthSettingsRouteImport.update({
-  id: "/settings",
-  path: "/settings",
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthStatsRoute = AuthStatsRouteImport.update({
-  id: "/stats",
-  path: "/stats",
+  id: '/stats',
+  path: '/stats',
   getParentRoute: () => AuthRoute,
-} as any).lazy(() => import("./routes/_auth/stats.lazy").then((d) => d.Route))
+} as any).lazy(() => import('./routes/_auth/stats.lazy').then((d) => d.Route))
 const AuthEditIdRoute = AuthEditIdRouteImport.update({
-  id: "/edit/$id",
-  path: "/edit/$id",
+  id: '/edit/$id',
+  path: '/edit/$id',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthEntryIdRoute = AuthEntryIdRouteImport.update({
-  id: "/entry/$id",
-  path: "/entry/$id",
+  id: '/entry/$id',
+  path: '/entry/$id',
   getParentRoute: () => AuthRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof AuthIndexRoute
-  "/login": typeof LoginRoute
-  "/register": typeof RegisterRoute
-  "/activities": typeof AuthActivitiesRoute
-  "/add": typeof AuthAddRoute
-  "/calendar": typeof AuthCalendarRoute
-  "/diary": typeof AuthDiaryRoute
-  "/export": typeof AuthExportRoute
-  "/import": typeof AuthImportRoute
-  "/reminders": typeof AuthRemindersRoute
-  "/settings": typeof AuthSettingsRoute
-  "/stats": typeof AuthStatsRoute
-  "/edit/$id": typeof AuthEditIdRoute
-  "/entry/$id": typeof AuthEntryIdRoute
+  '/': typeof AuthIndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/activities': typeof AuthActivitiesRoute
+  '/add': typeof AuthAddRoute
+  '/calendar': typeof AuthCalendarRoute
+  '/diary': typeof AuthDiaryRoute
+  '/export': typeof AuthExportRoute
+  '/import': typeof AuthImportRoute
+  '/metrics': typeof AuthMetricsRoute
+  '/reminders': typeof AuthRemindersRoute
+  '/settings': typeof AuthSettingsRoute
+  '/stats': typeof AuthStatsRoute
+  '/edit/$id': typeof AuthEditIdRoute
+  '/entry/$id': typeof AuthEntryIdRoute
 }
 export interface FileRoutesByTo {
-  "/login": typeof LoginRoute
-  "/register": typeof RegisterRoute
-  "/activities": typeof AuthActivitiesRoute
-  "/add": typeof AuthAddRoute
-  "/calendar": typeof AuthCalendarRoute
-  "/diary": typeof AuthDiaryRoute
-  "/export": typeof AuthExportRoute
-  "/import": typeof AuthImportRoute
-  "/reminders": typeof AuthRemindersRoute
-  "/settings": typeof AuthSettingsRoute
-  "/stats": typeof AuthStatsRoute
-  "/": typeof AuthIndexRoute
-  "/edit/$id": typeof AuthEditIdRoute
-  "/entry/$id": typeof AuthEntryIdRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/activities': typeof AuthActivitiesRoute
+  '/add': typeof AuthAddRoute
+  '/calendar': typeof AuthCalendarRoute
+  '/diary': typeof AuthDiaryRoute
+  '/export': typeof AuthExportRoute
+  '/import': typeof AuthImportRoute
+  '/metrics': typeof AuthMetricsRoute
+  '/reminders': typeof AuthRemindersRoute
+  '/settings': typeof AuthSettingsRoute
+  '/stats': typeof AuthStatsRoute
+  '/': typeof AuthIndexRoute
+  '/edit/$id': typeof AuthEditIdRoute
+  '/entry/$id': typeof AuthEntryIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  "/_auth": typeof AuthRouteWithChildren
-  "/login": typeof LoginRoute
-  "/register": typeof RegisterRoute
-  "/_auth/activities": typeof AuthActivitiesRoute
-  "/_auth/add": typeof AuthAddRoute
-  "/_auth/calendar": typeof AuthCalendarRoute
-  "/_auth/diary": typeof AuthDiaryRoute
-  "/_auth/export": typeof AuthExportRoute
-  "/_auth/import": typeof AuthImportRoute
-  "/_auth/reminders": typeof AuthRemindersRoute
-  "/_auth/settings": typeof AuthSettingsRoute
-  "/_auth/stats": typeof AuthStatsRoute
-  "/_auth/": typeof AuthIndexRoute
-  "/_auth/edit/$id": typeof AuthEditIdRoute
-  "/_auth/entry/$id": typeof AuthEntryIdRoute
+  '/_auth': typeof AuthRouteWithChildren
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/_auth/activities': typeof AuthActivitiesRoute
+  '/_auth/add': typeof AuthAddRoute
+  '/_auth/calendar': typeof AuthCalendarRoute
+  '/_auth/diary': typeof AuthDiaryRoute
+  '/_auth/export': typeof AuthExportRoute
+  '/_auth/import': typeof AuthImportRoute
+  '/_auth/metrics': typeof AuthMetricsRoute
+  '/_auth/reminders': typeof AuthRemindersRoute
+  '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/stats': typeof AuthStatsRoute
+  '/_auth/': typeof AuthIndexRoute
+  '/_auth/edit/$id': typeof AuthEditIdRoute
+  '/_auth/entry/$id': typeof AuthEntryIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/login"
-    | "/register"
-    | "/activities"
-    | "/add"
-    | "/calendar"
-    | "/diary"
-    | "/export"
-    | "/import"
-    | "/reminders"
-    | "/settings"
-    | "/stats"
-    | "/edit/$id"
-    | "/entry/$id"
+    | '/'
+    | '/login'
+    | '/register'
+    | '/activities'
+    | '/add'
+    | '/calendar'
+    | '/diary'
+    | '/export'
+    | '/import'
+    | '/metrics'
+    | '/reminders'
+    | '/settings'
+    | '/stats'
+    | '/edit/$id'
+    | '/entry/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | "/login"
-    | "/register"
-    | "/activities"
-    | "/add"
-    | "/calendar"
-    | "/diary"
-    | "/export"
-    | "/import"
-    | "/reminders"
-    | "/settings"
-    | "/stats"
-    | "/"
-    | "/edit/$id"
-    | "/entry/$id"
+    | '/login'
+    | '/register'
+    | '/activities'
+    | '/add'
+    | '/calendar'
+    | '/diary'
+    | '/export'
+    | '/import'
+    | '/metrics'
+    | '/reminders'
+    | '/settings'
+    | '/stats'
+    | '/'
+    | '/edit/$id'
+    | '/entry/$id'
   id:
-    | "__root__"
-    | "/_auth"
-    | "/login"
-    | "/register"
-    | "/_auth/activities"
-    | "/_auth/add"
-    | "/_auth/calendar"
-    | "/_auth/diary"
-    | "/_auth/export"
-    | "/_auth/import"
-    | "/_auth/reminders"
-    | "/_auth/settings"
-    | "/_auth/stats"
-    | "/_auth/"
-    | "/_auth/edit/$id"
-    | "/_auth/entry/$id"
+    | '__root__'
+    | '/_auth'
+    | '/login'
+    | '/register'
+    | '/_auth/activities'
+    | '/_auth/add'
+    | '/_auth/calendar'
+    | '/_auth/diary'
+    | '/_auth/export'
+    | '/_auth/import'
+    | '/_auth/metrics'
+    | '/_auth/reminders'
+    | '/_auth/settings'
+    | '/_auth/stats'
+    | '/_auth/'
+    | '/_auth/edit/$id'
+    | '/_auth/entry/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -208,110 +220,117 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/_auth": {
-      id: "/_auth"
-      path: ""
-      fullPath: "/"
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/login": {
-      id: "/login"
-      path: "/login"
-      fullPath: "/login"
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/register": {
-      id: "/register"
-      path: "/register"
-      fullPath: "/register"
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_auth/": {
-      id: "/_auth/"
-      path: "/"
-      fullPath: "/"
+    '/_auth/': {
+      id: '/_auth/'
+      path: '/'
+      fullPath: '/'
       preLoaderRoute: typeof AuthIndexRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/activities": {
-      id: "/_auth/activities"
-      path: "/activities"
-      fullPath: "/activities"
+    '/_auth/activities': {
+      id: '/_auth/activities'
+      path: '/activities'
+      fullPath: '/activities'
       preLoaderRoute: typeof AuthActivitiesRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/add": {
-      id: "/_auth/add"
-      path: "/add"
-      fullPath: "/add"
+    '/_auth/add': {
+      id: '/_auth/add'
+      path: '/add'
+      fullPath: '/add'
       preLoaderRoute: typeof AuthAddRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/calendar": {
-      id: "/_auth/calendar"
-      path: "/calendar"
-      fullPath: "/calendar"
+    '/_auth/calendar': {
+      id: '/_auth/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
       preLoaderRoute: typeof AuthCalendarRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/diary": {
-      id: "/_auth/diary"
-      path: "/diary"
-      fullPath: "/diary"
+    '/_auth/diary': {
+      id: '/_auth/diary'
+      path: '/diary'
+      fullPath: '/diary'
       preLoaderRoute: typeof AuthDiaryRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/export": {
-      id: "/_auth/export"
-      path: "/export"
-      fullPath: "/export"
+    '/_auth/export': {
+      id: '/_auth/export'
+      path: '/export'
+      fullPath: '/export'
       preLoaderRoute: typeof AuthExportRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/import": {
-      id: "/_auth/import"
-      path: "/import"
-      fullPath: "/import"
+    '/_auth/import': {
+      id: '/_auth/import'
+      path: '/import'
+      fullPath: '/import'
       preLoaderRoute: typeof AuthImportRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/reminders": {
-      id: "/_auth/reminders"
-      path: "/reminders"
-      fullPath: "/reminders"
+    '/_auth/metrics': {
+      id: '/_auth/metrics'
+      path: '/metrics'
+      fullPath: '/metrics'
+      preLoaderRoute: typeof AuthMetricsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/reminders': {
+      id: '/_auth/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
       preLoaderRoute: typeof AuthRemindersRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/settings": {
-      id: "/_auth/settings"
-      path: "/settings"
-      fullPath: "/settings"
+    '/_auth/settings': {
+      id: '/_auth/settings'
+      path: '/settings'
+      fullPath: '/settings'
       preLoaderRoute: typeof AuthSettingsRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/stats": {
-      id: "/_auth/stats"
-      path: "/stats"
-      fullPath: "/stats"
+    '/_auth/stats': {
+      id: '/_auth/stats'
+      path: '/stats'
+      fullPath: '/stats'
       preLoaderRoute: typeof AuthStatsRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/edit/$id": {
-      id: "/_auth/edit/$id"
-      path: "/edit/$id"
-      fullPath: "/edit/$id"
+    '/_auth/edit/$id': {
+      id: '/_auth/edit/$id'
+      path: '/edit/$id'
+      fullPath: '/edit/$id'
       preLoaderRoute: typeof AuthEditIdRouteImport
       parentRoute: typeof AuthRoute
     }
-    "/_auth/entry/$id": {
-      id: "/_auth/entry/$id"
-      path: "/entry/$id"
-      fullPath: "/entry/$id"
+    '/_auth/entry/$id': {
+      id: '/_auth/entry/$id'
+      path: '/entry/$id'
+      fullPath: '/entry/$id'
       preLoaderRoute: typeof AuthEntryIdRouteImport
       parentRoute: typeof AuthRoute
     }
@@ -325,6 +344,7 @@ interface AuthRouteChildren {
   AuthDiaryRoute: typeof AuthDiaryRoute
   AuthExportRoute: typeof AuthExportRoute
   AuthImportRoute: typeof AuthImportRoute
+  AuthMetricsRoute: typeof AuthMetricsRoute
   AuthRemindersRoute: typeof AuthRemindersRoute
   AuthSettingsRoute: typeof AuthSettingsRoute
   AuthStatsRoute: typeof AuthStatsRoute
@@ -340,6 +360,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthDiaryRoute: AuthDiaryRoute,
   AuthExportRoute: AuthExportRoute,
   AuthImportRoute: AuthImportRoute,
+  AuthMetricsRoute: AuthMetricsRoute,
   AuthRemindersRoute: AuthRemindersRoute,
   AuthSettingsRoute: AuthSettingsRoute,
   AuthStatsRoute: AuthStatsRoute,

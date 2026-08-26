@@ -1,0 +1,24 @@
+[package]
+name = "bootstrap"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+application.workspace = true
+config.workspace = true
+http-axum.workspace = true
+sqlite.workspace = true
+auth.workspace = true
+storage.workspace = true
+event-publisher.workspace = true
+importer.workspace = true
+crypto.workspace = true
+music.workspace = true
+reqwest.workspace = true
+exporter.workspace = true
+weather.workspace = true
+web-push-adapter.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

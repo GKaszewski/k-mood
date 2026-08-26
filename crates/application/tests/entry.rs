@@ -21,3 +21,9 @@ mod mood_stats_test;
 
 #[path = "entry/replace_activity_test.rs"]
 mod replace_activity_test;
+
+#[path = "entry/dimension_test.rs"]
+mod dimension_test;
+
+#[path = "entry/calendar_test.rs"]
+mod calendar_test;

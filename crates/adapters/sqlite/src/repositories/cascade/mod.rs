@@ -41,6 +41,12 @@ impl domain::ports::CascadeDeletePort for SqliteCascadeDeleteRepository {
             .await
             .map_err(db_err)?;
 
+        sqlx::query("DELETE FROM daily_metrics WHERE user_id = ?")
+            .bind(&uid)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+
         tx.commit().await.map_err(db_err)?;
         Ok(())
     }

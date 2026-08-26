@@ -5,16 +5,19 @@ use chrono::FixedOffset;
 
 use config::PresetConfig;
 use domain::activity::{ActivityId, ActivityName, CategoryName};
+use domain::dimension::{ComposedEntry, DimensionValue};
 use domain::entry::{Content, Mood, MoodEntry};
 use domain::ports::{
-    ActivityCommandPort, ActivityQueryPort, ImportSourcePort, MoodEntryCommandPort,
-    MoodEntryQueryPort,
+    ActivityCommandPort, ActivityQueryPort, EntryDimensionPort, ImportSourcePort,
+    MoodEntryCommandPort, MoodEntryQueryPort, UserQueryPort,
 };
+use domain::user::Timezone;
 
 use crate::errors::ApplicationError;
 
 use super::super::commands::ImportCommand;
 
+#[derive(Debug)]
 pub struct ImportResult {
     pub imported: u64,
     pub skipped: u64,
@@ -27,6 +30,8 @@ pub struct Deps {
     pub entry_query: Arc<dyn MoodEntryQueryPort>,
     pub activity_command: Arc<dyn ActivityCommandPort>,
     pub activity_query: Arc<dyn ActivityQueryPort>,
+    pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
+    pub users: Arc<dyn UserQueryPort>,
     pub preset: PresetConfig,
 }
 
@@ -34,6 +39,8 @@ pub struct Deps {
 pub async fn execute(cmd: ImportCommand, deps: &Deps) -> Result<ImportResult, ApplicationError> {
     let rows = deps.source.read_entries(&cmd.data).await?;
     tracing::info!(row_count = rows.len(), "parsed import data");
+
+    let timezone = crate::day::timezone_for(&cmd.user_id, &deps.users).await?;
 
     let existing_entries = deps
         .entry_query
@@ -68,6 +75,7 @@ pub async fn execute(cmd: ImportCommand, deps: &Deps) -> Result<ImportResult, Ap
             &mut activity_cache,
             &category_map,
             &existing_keys,
+            &timezone,
             deps,
         )
         .await
@@ -83,7 +91,18 @@ pub async fn execute(cmd: ImportCommand, deps: &Deps) -> Result<ImportResult, Ap
     }
 
     let imported = batch.len() as u64;
-    deps.entry_command.save_batch(&batch).await?;
+
+    let entries: Vec<MoodEntry> = batch
+        .iter()
+        .map(|composed| composed.entry.clone())
+        .collect();
+    deps.entry_command.save_batch(&entries).await?;
+
+    for composed in &batch {
+        for port in &deps.dimensions {
+            port.save(composed.entry.id(), &composed.dimensions).await?;
+        }
+    }
 
     tracing::info!(imported, skipped, "import completed");
 
@@ -100,10 +119,11 @@ async fn build_entry(
     activity_cache: &mut HashMap<String, ActivityId>,
     category_map: &HashMap<String, String>,
     existing_keys: &HashSet<(String, u8)>,
+    timezone: &Timezone,
     deps: &Deps,
-) -> Result<Option<MoodEntry>, ApplicationError> {
+) -> Result<Option<ComposedEntry>, ApplicationError> {
     let mood = Mood::try_from(row.mood)?;
-    let logged_at = parse_datetime(&row.date, &row.time)?;
+    let logged_at = the_users_own_wall_clock(&row.date, &row.time, timezone)?;
 
     let key = (logged_at.to_rfc3339(), mood.value());
     if existing_keys.contains(&key) {
@@ -117,13 +137,21 @@ async fn build_entry(
         activity_ids.push(id);
     }
 
-    let content = row.note.as_ref().and_then(|n| Content::new(n).ok());
+    let mut dimensions: Vec<DimensionValue> = row
+        .note
+        .as_ref()
+        .and_then(|note| Content::new(note).ok())
+        .map(DimensionValue::Content)
+        .into_iter()
+        .collect();
 
-    let mut entry = MoodEntry::new(user_id.clone(), mood, logged_at);
-    entry.set_activities(activity_ids);
-    entry.set_content(content);
+    if !activity_ids.is_empty() {
+        dimensions.push(DimensionValue::activities(activity_ids));
+    }
 
-    Ok(Some(entry))
+    let entry = MoodEntry::new(user_id.clone(), mood, logged_at);
+
+    Ok(Some(ComposedEntry { entry, dimensions }))
 }
 
 async fn resolve_activity(
@@ -152,16 +180,47 @@ async fn resolve_activity(
     Ok(id)
 }
 
-fn parse_datetime(
+fn the_users_own_wall_clock(
     date: &str,
     time: &str,
+    timezone: &Timezone,
 ) -> Result<chrono::DateTime<FixedOffset>, ApplicationError> {
-    let datetime_str = format!("{date} {time}");
+    let written = format!("{date} {time}");
 
-    let naive = chrono::NaiveDateTime::parse_from_str(&datetime_str, "%Y-%m-%d %I:%M %p")
-        .or_else(|_| chrono::NaiveDateTime::parse_from_str(&datetime_str, "%Y-%m-%d %H:%M"))
-        .map_err(|e| ApplicationError::Validation(format!("invalid date/time: {e}")))?;
+    let wall_clock = chrono::NaiveDateTime::parse_from_str(&written, "%Y-%m-%d %I:%M %p")
+        .or_else(|_| chrono::NaiveDateTime::parse_from_str(&written, "%Y-%m-%d %H:%M"))
+        .map_err(|error| ApplicationError::Validation(format!("invalid date/time: {error}")))?;
 
-    let offset = FixedOffset::east_opt(0).expect("UTC offset is always valid");
-    Ok(naive.and_local_timezone(offset).unwrap())
+    Ok(placed_in(wall_clock, timezone).fixed_offset())
+}
+
+fn placed_in(
+    wall_clock: chrono::NaiveDateTime,
+    timezone: &Timezone,
+) -> chrono::DateTime<chrono_tz::Tz> {
+    use chrono::offset::LocalResult;
+
+    match wall_clock.and_local_timezone(timezone.resolve()) {
+        LocalResult::Single(placed) => placed,
+        LocalResult::Ambiguous(earlier, _) => earlier,
+        LocalResult::None => an_hour_the_clocks_skipped(wall_clock, timezone),
+    }
+}
+
+fn an_hour_the_clocks_skipped(
+    wall_clock: chrono::NaiveDateTime,
+    timezone: &Timezone,
+) -> chrono::DateTime<chrono_tz::Tz> {
+    let after_the_jump = wall_clock + chrono::Duration::hours(1);
+
+    tracing::warn!(
+        wall_clock = %wall_clock,
+        timezone = timezone.value(),
+        "this wall clock time never happened, so the entry lands an hour later"
+    );
+
+    after_the_jump
+        .and_local_timezone(timezone.resolve())
+        .earliest()
+        .unwrap_or_else(|| wall_clock.and_utc().with_timezone(&timezone.resolve()))
 }

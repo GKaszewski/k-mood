@@ -52,6 +52,8 @@ impl crate::ports::MediaStoragePort for InMemoryStore {
 #[async_trait::async_trait]
 impl crate::ports::CascadeDeletePort for InMemoryStore {
     async fn delete_all_user_data(&self, user_id: &UserId) -> Result<(), DomainError> {
+        self.cascade_to_dimensions(&self.entry_ids_of(user_id));
+
         self.entries
             .write()
             .unwrap()
@@ -64,10 +66,16 @@ impl crate::ports::CascadeDeletePort for InMemoryStore {
             .write()
             .unwrap()
             .retain(|_, r| r.user_id() != user_id);
+        self.daily_metrics
+            .write()
+            .unwrap()
+            .retain(|m| m.user_id() != user_id);
         Ok(())
     }
 
     async fn delete_user_account(&self, user_id: &UserId) -> Result<(), DomainError> {
+        self.cascade_to_dimensions(&self.entry_ids_of(user_id));
+
         self.entries
             .write()
             .unwrap()
@@ -88,6 +96,10 @@ impl crate::ports::CascadeDeletePort for InMemoryStore {
             .write()
             .unwrap()
             .retain(|_, s| s.user_id() != user_id);
+        self.daily_metrics
+            .write()
+            .unwrap()
+            .retain(|m| m.user_id() != user_id);
         self.users.write().unwrap().remove(user_id);
         Ok(())
     }
@@ -110,7 +122,25 @@ impl crate::ports::CascadeDeletePort for InMemoryStore {
                 true
             }
         });
+        drop(entries);
+
+        let gone: Vec<crate::entry::MoodEntryId> =
+            removed.iter().map(|entry| entry.id().clone()).collect();
+        self.cascade_to_dimensions(&gone);
+
         Ok(removed)
+    }
+}
+
+impl InMemoryStore {
+    fn entry_ids_of(&self, user_id: &UserId) -> Vec<crate::entry::MoodEntryId> {
+        self.entries
+            .read()
+            .unwrap()
+            .values()
+            .filter(|entry| entry.user_id() == user_id)
+            .map(|entry| entry.id().clone())
+            .collect()
     }
 }
 
@@ -174,12 +204,16 @@ impl crate::ports::PushSubscriptionQueryPort for InMemoryStore {
 }
 
 #[async_trait::async_trait]
-impl crate::ports::ExportPort for InMemoryStore {
-    async fn export_user_data(
-        &self,
-        _data: &crate::ports::UserExport,
-    ) -> Result<Vec<u8>, DomainError> {
-        Ok(b"exported".to_vec())
+impl crate::ports::BackupWriterPort for InMemoryStore {
+    async fn write(&self, _backup: &crate::ports::UserBackup) -> Result<Vec<u8>, DomainError> {
+        Ok(b"backup".to_vec())
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::ports::ExtractWriterPort for InMemoryStore {
+    async fn write(&self, _extract: &crate::ports::SharedExtract) -> Result<Vec<u8>, DomainError> {
+        Ok(b"extract".to_vec())
     }
 }
 

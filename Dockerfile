@@ -12,16 +12,20 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 
-RUN cargo build --release --bin k-mood
+RUN cargo build --release --bin k-mood --bin k-mood-worker
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates wget libssl3 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/k-mood /usr/local/bin/k-mood
+COPY --from=builder /app/target/release/k-mood-worker /usr/local/bin/k-mood-worker
 COPY --from=frontend /app/spa/dist /spa/dist
 
 RUN mkdir -p /data
 VOLUME /data
 WORKDIR /data
+
+ENV KMOOD_STORAGE__DATA_DIR=/data
+ENV KMOOD_SERVER__SPA_DIR=/spa/dist
 
 EXPOSE 3000
 ENTRYPOINT ["k-mood"]

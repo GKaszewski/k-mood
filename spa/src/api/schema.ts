@@ -23,17 +23,48 @@ export const ActivityResponse = z.object({
 })
 export type ActivityResponse = z.infer<typeof ActivityResponse>
 
+export const DimensionPayload = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("content"), text: z.string() }),
+  z.object({ kind: z.literal("activities"), ids: z.array(uuid) }),
+  z.object({ kind: z.literal("photos"), ids: z.array(uuid) }),
+  z.object({ kind: z.literal("voiceMemos"), ids: z.array(uuid) }),
+  z.object({
+    kind: z.literal("location"),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }),
+  z.object({
+    kind: z.literal("song"),
+    title: z.string(),
+    artist: z.string(),
+    album: z.string().optional(),
+    recordingId: uuid.optional(),
+  }),
+  z.object({
+    kind: z.literal("weather"),
+    condition: z.enum([
+      "clear",
+      "cloudy",
+      "fog",
+      "drizzle",
+      "rain",
+      "snow",
+      "thunderstorm",
+    ]),
+    temperature: z.number(),
+    observedBy: z.string(),
+  }),
+])
+export type DimensionPayload = z.infer<typeof DimensionPayload>
+
 export const EntryResponse = z.object({
   id: uuid,
   userId: uuid,
   mood: Mood,
   moodLabel: z.string(),
   loggedAt: datetime,
-  activities: z.array(uuid),
-  content: z.string().nullable(),
-  photos: z.array(uuid),
+  dimensions: z.array(DimensionPayload),
   photoUrls: z.array(z.string()),
-  voiceMemos: z.array(uuid),
   voiceMemoUrls: z.array(z.string()),
   createdAt: datetime,
   updatedAt: datetime,
@@ -43,8 +74,10 @@ export type EntryResponse = z.infer<typeof EntryResponse>
 export const CalendarDayResponse = z.object({
   date: date,
   entries: z.array(EntryResponse),
-  dominantMood: Mood.nullable(),
-  dominantMoodLabel: z.string().nullable(),
+  dayMood: z.number().nullable(),
+  mood: Mood.nullable(),
+  moodLabel: z.string().nullable(),
+  cycleDay: z.int().nullable(),
 })
 export type CalendarDayResponse = z.infer<typeof CalendarDayResponse>
 
@@ -98,12 +131,6 @@ export const BulkActionResponse = z.object({
 })
 export type BulkActionResponse = z.infer<typeof BulkActionResponse>
 
-export const CorrelationResponse = z.object({
-  activityId: uuid,
-  correlation: z.number().nullable(),
-})
-export type CorrelationResponse = z.infer<typeof CorrelationResponse>
-
 export const ImportResultResponse = z.object({
   imported: z.number(),
   skipped: z.number(),
@@ -155,20 +182,14 @@ export type RegisterRequest = z.infer<typeof RegisterRequest>
 export const CreateEntryRequest = z.object({
   mood: Mood,
   loggedAt: z.string().optional(),
-  activityIds: z.array(z.string()).optional(),
-  content: z.string().optional(),
-  photoIds: z.array(z.string()).optional(),
-  voiceMemoIds: z.array(z.string()).optional(),
+  dimensions: z.array(DimensionPayload).optional(),
 })
 export type CreateEntryRequest = z.infer<typeof CreateEntryRequest>
 
 export const UpdateEntryRequest = z.object({
   mood: Mood,
   loggedAt: z.string().optional(),
-  activityIds: z.array(z.string()).optional(),
-  content: z.string().optional(),
-  photoIds: z.array(z.string()).optional(),
-  voiceMemoIds: z.array(z.string()).optional(),
+  dimensions: z.array(DimensionPayload).optional(),
 })
 export type UpdateEntryRequest = z.infer<typeof UpdateEntryRequest>
 
@@ -238,3 +259,149 @@ export const DateRangeParams = z.object({
   to: z.string(),
 })
 export type DateRangeParams = z.infer<typeof DateRangeParams>
+
+export const ProviderConnectionResponse = z.object({
+  provider: z.string(),
+  connectedAt: datetime,
+})
+export type ProviderConnectionResponse = z.infer<
+  typeof ProviderConnectionResponse
+>
+
+export const MetricKind = z.enum([
+  "steps",
+  "sleepMinutes",
+  "awakeMinutes",
+  "restingHeartRate",
+  "hrv",
+  "exerciseMinutes",
+  "screenTimeMinutes",
+  "alcoholicDrinks",
+])
+export type MetricKind = z.infer<typeof MetricKind>
+
+export const DailyMetricResponse = z.object({
+  date: date,
+  kind: MetricKind,
+  value: z.int(),
+  provider: z.string().optional(),
+})
+export type DailyMetricResponse = z.infer<typeof DailyMetricResponse>
+
+export const MetricPayload = z.object({
+  kind: MetricKind,
+  value: z.int().nullable(),
+})
+export type MetricPayload = z.infer<typeof MetricPayload>
+
+export const SetDailyMetricsRequest = z.object({
+  metrics: z.array(MetricPayload),
+})
+export type SetDailyMetricsRequest = z.infer<typeof SetDailyMetricsRequest>
+
+export const DateSpanParams = z.object({
+  from: date,
+  to: date,
+})
+export type DateSpanParams = z.infer<typeof DateSpanParams>
+
+export const CorrelationInputPayload = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("metric"), metric: MetricKind }),
+  z.object({ kind: z.literal("moonPhase") }),
+  z.object({
+    kind: z.literal("activity"),
+    activityId: uuid,
+    name: z.string(),
+  }),
+])
+export type CorrelationInputPayload = z.infer<typeof CorrelationInputPayload>
+
+export const StrategyScoreResponse = z.object({
+  strategy: z.string(),
+  coefficient: z.number(),
+  heldUp: z.boolean(),
+})
+export type StrategyScoreResponse = z.infer<typeof StrategyScoreResponse>
+
+export const AgreementResponse = z.object({
+  agreeing: z.int(),
+  applicable: z.int(),
+})
+export type AgreementResponse = z.infer<typeof AgreementResponse>
+
+export const CorrelationRowResponse = z.object({
+  input: CorrelationInputPayload,
+  sampleSize: z.int(),
+  agreement: AgreementResponse,
+  scores: z.array(StrategyScoreResponse),
+})
+export type CorrelationRowResponse = z.infer<typeof CorrelationRowResponse>
+
+export const ApiTokenResponse = z.object({
+  id: uuid,
+  name: z.string(),
+  scope: z.string(),
+  createdAt: datetime,
+  lastUsedAt: datetime.nullable(),
+})
+export type ApiTokenResponse = z.infer<typeof ApiTokenResponse>
+
+export const MintedApiTokenResponse = z.object({
+  token: ApiTokenResponse,
+  secret: z.string(),
+})
+export type MintedApiTokenResponse = z.infer<typeof MintedApiTokenResponse>
+
+export const MintApiTokenRequest = z.object({
+  name: z.string(),
+})
+export type MintApiTokenRequest = z.infer<typeof MintApiTokenRequest>
+
+export const RejectionResponse = z.object({
+  id: uuid,
+  origin: z.enum(["import", "storedRow"]),
+  provider: z.string().nullable(),
+  date: date.nullable(),
+  kind: z.string(),
+  value: z.int().nullable(),
+  reason: z.string(),
+  recordedAt: datetime,
+})
+export type RejectionResponse = z.infer<typeof RejectionResponse>
+
+export const PreferencesResponse = z.object({
+  tracksCycle: z.boolean(),
+})
+export type PreferencesResponse = z.infer<typeof PreferencesResponse>
+
+export const CyclePositionResponse = z.object({
+  day: z.int(),
+  progress: z.number(),
+})
+export type CyclePositionResponse = z.infer<typeof CyclePositionResponse>
+
+export const CycleViewResponse = z.object({
+  tracking: z.boolean(),
+  starts: z.array(date),
+  today: CyclePositionResponse.nullable(),
+  usualLength: z.int(),
+})
+export type CycleViewResponse = z.infer<typeof CycleViewResponse>
+
+export const RestoreOutcomeResponse = z.object({
+  entries: z.int(),
+  metrics: z.int(),
+  cycleStarts: z.int(),
+  activities: z.int(),
+  reminders: z.int(),
+  media: z.int(),
+  unreadable: z.array(z.string()),
+})
+export type RestoreOutcomeResponse = z.infer<typeof RestoreOutcomeResponse>
+
+export const SubsonicCredential = z.object({
+  url: z.string(),
+  username: z.string(),
+  password: z.string(),
+})
+export type SubsonicCredential = z.infer<typeof SubsonicCredential>

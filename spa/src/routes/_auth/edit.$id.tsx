@@ -1,8 +1,17 @@
+import {
+  activitiesOf,
+  contentOf,
+  locationOf,
+  photosOf,
+  songOf,
+  voiceMemosOf,
+} from "@/lib/dimensions"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { EntryForm, type EntryFormData } from "@/components/entry/entry-form"
+import { EntryForm } from "@/components/entry/entry-form"
+import type { EntryFormData } from "@/components/entry/entry-form"
 import { useEntry } from "@/hooks/use-entries"
 import { useUpdateEntry } from "@/hooks/use-update-entry"
 
@@ -62,10 +71,13 @@ function EditEntryPage() {
         onSubmit={handleSubmit}
         initial={{
           mood: entry.mood,
-          content: entry.content ?? undefined,
-          activities: entry.activities,
-          photos: entry.photos,
-          voiceMemos: entry.voiceMemos,
+          loggedAt: entry.loggedAt,
+          content: contentOf(entry) ?? undefined,
+          activities: activitiesOf(entry),
+          photos: photosOf(entry),
+          voiceMemos: voiceMemosOf(entry),
+          location: locationOf(entry),
+          song: songOf(entry),
         }}
       />
     </div>

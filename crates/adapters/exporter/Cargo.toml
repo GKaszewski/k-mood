@@ -5,7 +5,14 @@ version.workspace = true
 
 [dependencies]
 domain.workspace = true
+api-types.workspace = true
+chrono.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 zip.workspace = true
+
+[dev-dependencies]
+domain = { workspace = true, features = ["test-helpers"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+chrono.workspace = true

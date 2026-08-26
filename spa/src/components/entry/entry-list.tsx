@@ -13,12 +13,12 @@ export function EntryList({ entries, limit }: EntryListProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      {grouped.map(({ label, entries }) => (
+      {grouped.map(({ label, entries: onThatDay }) => (
         <div key={label} className="flex flex-col gap-2">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {label}
           </h3>
-          {entries.map((entry) => (
+          {onThatDay.map((entry) => (
             <EntryCard key={entry.id} entry={entry} />
           ))}
         </div>
@@ -42,9 +42,9 @@ function groupByDay(
     groups.get(key)!.push(entry)
   }
 
-  return Array.from(groups.entries()).map(([key, entries]) => ({
+  return Array.from(groups.entries()).map(([key, onThatDay]) => ({
     label: formatDayLabel(new Date(key)),
-    entries,
+    entries: onThatDay,
   }))
 }
 

@@ -3,4 +3,5 @@ pub mod clear_data;
 pub mod delete_user;
 pub mod get_profile;
 pub mod register;
+pub mod set_preferences;
 pub mod update_profile;

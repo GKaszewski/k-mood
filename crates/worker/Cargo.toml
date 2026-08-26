@@ -1,0 +1,16 @@
+[package]
+name = "worker"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "k-mood-worker"
+path = "src/main.rs"
+
+[dependencies]
+bootstrap.workspace = true
+domain.workspace = true
+application.workspace = true
+config.workspace = true
+tokio.workspace = true
+tracing.workspace = true

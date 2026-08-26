@@ -6,3 +6,8 @@ version.workspace = true
 [dependencies]
 thiserror.workspace = true
 serde.workspace = true
+figment.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }

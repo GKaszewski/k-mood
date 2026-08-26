@@ -19,3 +19,22 @@ jwt_secret = "dev-secret-do-not-use-in-prod"
 access_token_ttl_seconds = 900
 refresh_token_ttl_seconds = 2592000
 allow_registration = true
+
+[analysis]
+minimum_sample_size = 30
+false_discovery_rate = 0.10
+
+[import]
+maximum_days_per_import = 90
+rejections_kept = 200
+
+[worker]
+poll_seconds = 15
+sweep_seconds = 900
+session_cleanup_seconds = 3600
+reminder_seconds = 60
+jobs_per_poll = 20
+enqueued_per_sweep = 200
+most_attempts = 5
+stalled_after_seconds = 300
+look_up_weather = true

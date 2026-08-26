@@ -44,9 +44,9 @@ async fn filters_by_activity() {
     let user = test_user("alice");
     let activity = test_activity(user.id().clone(), "exercise");
 
-    let mut tagged = test_entry(user.id().clone(), Mood::Good);
-    tagged.set_activities(vec![activity.id().clone()]);
+    let tagged = test_entry(user.id().clone(), Mood::Good);
     store.save(&tagged).await.unwrap();
+    store.assign_activities(tagged.id(), vec![activity.id().clone()]);
 
     store
         .save(&test_entry(user.id().clone(), Mood::Meh))

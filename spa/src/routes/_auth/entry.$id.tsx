@@ -1,8 +1,17 @@
+import {
+  activitiesOf,
+  contentOf,
+  locationOf,
+  photosOf,
+  songOf,
+  voiceMemosOf,
+} from "@/lib/dimensions"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { EntryWeather } from "@/components/entry/entry-weather"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -113,38 +122,70 @@ function EntryDetailPage() {
         </CardContent>
       </Card>
 
-      {entry.content && (
+      {contentOf(entry) && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Note</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{entry.content}</p>
+            <p className="text-sm whitespace-pre-wrap">{contentOf(entry)}</p>
           </CardContent>
         </Card>
       )}
 
-      {entry.activities.length > 0 && (
+      {songOf(entry) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Listening to</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">
+              {songOf(entry)?.title}
+              <span className="text-muted-foreground">
+                {" "}
+                — {songOf(entry)?.artist}
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {locationOf(entry) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Location</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1.5">
+            <p className="text-sm text-muted-foreground">
+              {locationOf(entry)?.latitude.toFixed(4)},{" "}
+              {locationOf(entry)?.longitude.toFixed(4)}
+            </p>
+            <EntryWeather entry={entry} />
+          </CardContent>
+        </Card>
+      )}
+
+      {activitiesOf(entry).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Activities</CardTitle>
           </CardHeader>
           <CardContent>
             <GroupedActivityBadges
-              activityIds={entry.activities}
+              activityIds={activitiesOf(entry)}
               allActivities={activities ?? []}
             />
           </CardContent>
         </Card>
       )}
 
-      {entry.photos.length > 0 && (
+      {photosOf(entry).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Photos</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
-            {entry.photos.map((photoId) => (
+            {photosOf(entry).map((photoId) => (
               <img
                 key={photoId}
                 src={media.photoUrl(photoId)}
@@ -156,13 +197,13 @@ function EntryDetailPage() {
         </Card>
       )}
 
-      {entry.voiceMemos.length > 0 && (
+      {voiceMemosOf(entry).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Voice memos</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {entry.voiceMemos.map((memoId) => (
+            {voiceMemosOf(entry).map((memoId) => (
               <AudioPlayer key={memoId} src={media.voiceMemoUrl(memoId)} />
             ))}
           </CardContent>

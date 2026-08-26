@@ -1,13 +1,16 @@
 use axum::extract::DefaultBodyLimit;
 use axum::http::HeaderValue;
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{delete, get, patch, post, put};
 use axum::{Json, Router};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
-use crate::handlers::{activities, auth, entries, import_export, media, push, reminders, users};
+use crate::handlers::{
+    activities, auth, correlations, cycle, data, entries, import_export, media, metrics, providers,
+    push, reminders, tokens, users,
+};
 use crate::openapi::ApiDoc;
 use crate::state::AppState;
 
@@ -62,8 +65,48 @@ fn api_routes() -> Router<AppState> {
         .nest("/users", user_routes())
         .nest("/reminders", reminder_routes())
         .nest("/media", media_routes())
+        .nest("/metrics", metric_routes())
+        .nest("/correlations", correlation_routes())
+        .nest("/tokens", token_routes())
+        .nest("/cycle", cycle_routes())
+        .nest("/providers", provider_routes())
         .nest("/push", push_routes())
         .nest("/data", data_routes())
+}
+
+fn cycle_routes() -> Router<AppState> {
+    Router::new().route("/", get(cycle::handle_read)).route(
+        "/{date}",
+        put(cycle::handle_record).delete(cycle::handle_forget),
+    )
+}
+
+fn token_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(tokens::handle_list).post(tokens::handle_mint))
+        .route("/{id}", delete(tokens::handle_revoke))
+}
+
+fn correlation_routes() -> Router<AppState> {
+    Router::new().route("/", get(correlations::handle_list))
+}
+
+fn metric_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(metrics::handle_list))
+        .route("/import", post(metrics::handle_import))
+        .route("/rejections", get(metrics::handle_rejections))
+        .route("/{date}", put(metrics::handle_set))
+}
+
+fn provider_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(providers::handle_list))
+        .route("/now-playing", get(providers::handle_now_playing))
+        .route(
+            "/{provider}",
+            put(providers::handle_connect).delete(providers::handle_disconnect),
+        )
 }
 
 fn auth_routes() -> Router<AppState> {
@@ -88,10 +131,6 @@ fn entry_routes() -> Router<AppState> {
         .route(
             "/filter/activity/{id}",
             get(entries::handle_filter_by_activity),
-        )
-        .route(
-            "/correlation/{id}",
-            get(entries::handle_activity_correlation),
         )
         .route("/bulk/delete", delete(entries::handle_delete_by_date_range))
         .route(
@@ -127,6 +166,10 @@ fn user_routes() -> Router<AppState> {
         )
         .route("/me/password", patch(users::handle_change_password))
         .route("/me/data", delete(users::handle_clear_data))
+        .route(
+            "/me/preferences",
+            get(cycle::handle_preferences).patch(cycle::handle_set_preferences),
+        )
 }
 
 fn reminder_routes() -> Router<AppState> {
@@ -167,6 +210,8 @@ fn push_routes() -> Router<AppState> {
 
 fn data_routes() -> Router<AppState> {
     Router::new()
-        .route("/export", get(import_export::handle_export))
+        .route("/backup", get(data::handle_backup))
+        .route("/extract", get(data::handle_extract))
+        .route("/restore", post(data::handle_restore))
         .route("/import", post(import_export::handle_import))
 }

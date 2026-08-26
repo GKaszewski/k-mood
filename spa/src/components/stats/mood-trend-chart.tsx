@@ -69,8 +69,14 @@ export function MoodTrendChart({
               width={32}
             />
             <Tooltip
-              content={({ active, payload }) => {
+              content={(props) => {
+                const { active, payload } = props as {
+                  active?: boolean
+                  payload?: ReadonlyArray<{ payload: DataPoint }>
+                }
+
                 if (!active || !payload?.length) return null
+
                 const d = payload[0].payload
                 const mood = Math.round(d.avg)
                 return (

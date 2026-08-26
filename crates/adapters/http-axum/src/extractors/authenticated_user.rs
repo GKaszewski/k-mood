@@ -19,6 +19,12 @@ impl IntoResponse for AuthRejection {
 
 pub struct AuthRejection(String);
 
+impl AuthRejection {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self(reason.into())
+    }
+}
+
 impl<S> FromRequestParts<S> for AuthenticatedUser
 where
     S: Send + Sync,
@@ -29,7 +35,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
 
-        let token = extract_bearer_token(parts)
+        let token = bearer_token(parts)
             .ok_or_else(|| AuthRejection("missing or invalid authorization header".into()))?;
 
         let user_id = app_state
@@ -42,7 +48,7 @@ where
     }
 }
 
-fn extract_bearer_token(parts: &Parts) -> Option<String> {
+pub fn bearer_token(parts: &Parts) -> Option<String> {
     let header = parts.headers.get("authorization")?.to_str().ok()?;
     let token = header.strip_prefix("Bearer ")?;
     Some(token.to_string())

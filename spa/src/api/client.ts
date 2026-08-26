@@ -6,7 +6,6 @@ import {
   AuthTokenResponse,
   BulkActionResponse,
   CalendarDayResponse,
-  CorrelationResponse,
   EntryResponse,
   ImportResultResponse,
   MediaIdResponse,
@@ -14,20 +13,35 @@ import {
   ReminderResponse,
   UserResponse,
   VapidKeyResponse,
-  type ChangePasswordRequest,
-  type CreateActivityRequest,
-  type CreateEntryRequest,
-  type CreateReminderRequest,
-  type DateRangeParams,
-  type ListEntriesParams,
-  type LoginRequest,
-  type RegisterRequest,
-  type RenameActivityRequest,
-  type ReplaceActivityRequest,
-  type SetCategoryRequest,
-  type UpdateEntryRequest,
-  type UpdateProfileRequest,
-  type UpdateReminderRequest,
+  ProviderConnectionResponse,
+  DailyMetricResponse,
+  RejectionResponse,
+  RestoreOutcomeResponse,
+  CycleViewResponse,
+  PreferencesResponse,
+  ApiTokenResponse,
+  MintedApiTokenResponse,
+  CorrelationRowResponse,
+  DimensionPayload,
+} from "./schema"
+import type {
+  ChangePasswordRequest,
+  CreateActivityRequest,
+  CreateEntryRequest,
+  DateSpanParams,
+  MetricPayload,
+  SubsonicCredential,
+  CreateReminderRequest,
+  DateRangeParams,
+  ListEntriesParams,
+  LoginRequest,
+  RegisterRequest,
+  RenameActivityRequest,
+  ReplaceActivityRequest,
+  SetCategoryRequest,
+  UpdateEntryRequest,
+  UpdateProfileRequest,
+  UpdateReminderRequest,
 } from "./schema"
 
 const api = axios.create({
@@ -124,7 +138,7 @@ async function request<T>(
 }
 
 async function requestVoid(
-  method: "post" | "patch" | "delete",
+  method: "post" | "put" | "patch" | "delete",
   path: string,
   data?: unknown
 ): Promise<void> {
@@ -166,6 +180,87 @@ export const auth = {
 
   logout: (refreshToken: string) =>
     requestVoid("post", "/api/v1/auth/logout", { refreshToken }),
+}
+
+// ── Providers ───────────────────────────────────────────────────
+
+export const providers = {
+  list: () =>
+    request("get", "/api/v1/providers", ProviderConnectionResponse.array()),
+
+  connect: (provider: string, credential: SubsonicCredential) =>
+    requestVoid("put", `/api/v1/providers/${provider}`, { credential }),
+
+  disconnect: (provider: string) =>
+    requestVoid("delete", `/api/v1/providers/${provider}`),
+
+  nowPlaying: () =>
+    request(
+      "get",
+      "/api/v1/providers/now-playing",
+      DimensionPayload.nullable()
+    ),
+}
+
+// ── Cycle ───────────────────────────────────────────────────────
+
+export const cycle = {
+  read: () => request("get", "/api/v1/cycle", CycleViewResponse),
+
+  record: (date: string) => requestVoid("put", `/api/v1/cycle/${date}`),
+
+  forget: (date: string) => requestVoid("delete", `/api/v1/cycle/${date}`),
+
+  preferences: () =>
+    request("get", "/api/v1/users/me/preferences", PreferencesResponse),
+
+  setTracking: (tracksCycle: boolean) =>
+    request("patch", "/api/v1/users/me/preferences", PreferencesResponse, {
+      tracksCycle,
+    }),
+}
+
+// ── API tokens ──────────────────────────────────────────────────
+
+export const tokens = {
+  list: () => request("get", "/api/v1/tokens", ApiTokenResponse.array()),
+
+  mint: (name: string) =>
+    request("post", "/api/v1/tokens", MintedApiTokenResponse, { name }),
+
+  revoke: (id: string) => requestVoid("delete", `/api/v1/tokens/${id}`),
+}
+
+// ── Correlations ────────────────────────────────────────────────
+
+export const correlations = {
+  list: (params: DateSpanParams) =>
+    request(
+      "get",
+      "/api/v1/correlations",
+      CorrelationRowResponse.array(),
+      undefined,
+      params
+    ),
+}
+
+// ── Daily metrics ───────────────────────────────────────────────
+
+export const metrics = {
+  list: (params: DateSpanParams) =>
+    request(
+      "get",
+      "/api/v1/metrics",
+      DailyMetricResponse.array(),
+      undefined,
+      params
+    ),
+
+  set: (date: string, values: MetricPayload[]) =>
+    requestVoid("put", `/api/v1/metrics/${date}`, { metrics: values }),
+
+  rejections: () =>
+    request("get", "/api/v1/metrics/rejections", RejectionResponse.array()),
 }
 
 // ── Entries ─────────────────────────────────────────────────────
@@ -231,15 +326,6 @@ export const entries = {
       "get",
       `/api/v1/entries/filter/activity/${activityId}`,
       EntryResponse.array()
-    ),
-
-  correlation: (activityId: string, params?: { from?: string; to?: string }) =>
-    request(
-      "get",
-      `/api/v1/entries/correlation/${activityId}`,
-      CorrelationResponse,
-      undefined,
-      params
     ),
 }
 
@@ -325,17 +411,24 @@ export const media = {
 // ── Data ────────────────────────────────────────────────────────
 
 export const data = {
-  export: async (): Promise<Blob> => {
-    try {
-      const res = await api.get("/api/v1/data/export", { responseType: "blob" })
-      return res.data as Blob
-    } catch (err) {
-      return handleError(err)
-    }
-  },
+  completeBackup: () => download("/api/v1/data/backup"),
+
+  shareableExtract: () => download("/api/v1/data/extract"),
+
+  restore: (file: File) =>
+    uploadForm("/api/v1/data/restore", file, RestoreOutcomeResponse),
 
   import: (file: File) =>
     uploadForm("/api/v1/data/import", file, ImportResultResponse),
+}
+
+async function download(path: string): Promise<Blob> {
+  try {
+    const res = await api.get(path, { responseType: "blob" })
+    return res.data as Blob
+  } catch (err) {
+    return handleError(err)
+  }
 }
 
 // ── Push ───────────────────────────────────────────────────────

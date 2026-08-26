@@ -15,78 +15,29 @@ impl SqliteEntryCommandRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
-
-    async fn save_relations(&self, entry: &MoodEntry) -> Result<(), DomainError> {
-        let entry_id = entry.id().value().to_string();
-
-        sqlx::query("DELETE FROM entry_activities WHERE entry_id = ?")
-            .bind(&entry_id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
-        for activity_id in entry.activities() {
-            sqlx::query("INSERT INTO entry_activities (entry_id, activity_id) VALUES (?, ?)")
-                .bind(&entry_id)
-                .bind(activity_id.value().to_string())
-                .execute(&self.pool)
-                .await
-                .map_err(db_err)?;
-        }
-
-        sqlx::query("DELETE FROM entry_photos WHERE entry_id = ?")
-            .bind(&entry_id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
-        for photo_id in entry.photos() {
-            sqlx::query("INSERT INTO entry_photos (entry_id, photo_id) VALUES (?, ?)")
-                .bind(&entry_id)
-                .bind(photo_id.value().to_string())
-                .execute(&self.pool)
-                .await
-                .map_err(db_err)?;
-        }
-
-        sqlx::query("DELETE FROM entry_voice_memos WHERE entry_id = ?")
-            .bind(&entry_id)
-            .execute(&self.pool)
-            .await
-            .map_err(db_err)?;
-        for voice_memo_id in entry.voice_memos() {
-            sqlx::query("INSERT INTO entry_voice_memos (entry_id, voice_memo_id) VALUES (?, ?)")
-                .bind(&entry_id)
-                .bind(voice_memo_id.value().to_string())
-                .execute(&self.pool)
-                .await
-                .map_err(db_err)?;
-        }
-
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
 impl domain::ports::MoodEntryCommandPort for SqliteEntryCommandRepository {
     async fn save(&self, entry: &MoodEntry) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO mood_entries (id, user_id, mood, logged_at, content, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO mood_entries (id, user_id, mood, logged_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                 mood = excluded.mood, logged_at = excluded.logged_at,
-                content = excluded.content, updated_at = excluded.updated_at"
+                updated_at = excluded.updated_at",
         )
         .bind(entry.id().value().to_string())
         .bind(entry.user_id().value().to_string())
         .bind(entry.mood().value() as i32)
         .bind(entry.logged_at().to_rfc3339())
-        .bind(entry.content().map(|c| c.value().to_string()))
         .bind(entry.created_at().to_rfc3339())
         .bind(entry.updated_at().to_rfc3339())
         .execute(&self.pool)
         .await
         .map_err(db_err)?;
 
-        self.save_relations(entry).await
+        Ok(())
     }
 
     async fn save_batch(&self, entries: &[MoodEntry]) -> Result<(), DomainError> {
@@ -96,51 +47,21 @@ impl domain::ports::MoodEntryCommandPort for SqliteEntryCommandRepository {
             let entry_id = entry.id().value().to_string();
 
             sqlx::query(
-                "INSERT INTO mood_entries (id, user_id, mood, logged_at, content, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                "INSERT INTO mood_entries (id, user_id, mood, logged_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET
                     mood = excluded.mood, logged_at = excluded.logged_at,
-                    content = excluded.content, updated_at = excluded.updated_at"
+                    updated_at = excluded.updated_at",
             )
             .bind(&entry_id)
             .bind(entry.user_id().value().to_string())
             .bind(entry.mood().value() as i32)
             .bind(entry.logged_at().to_rfc3339())
-            .bind(entry.content().map(|c| c.value().to_string()))
             .bind(entry.created_at().to_rfc3339())
             .bind(entry.updated_at().to_rfc3339())
             .execute(&mut *tx)
             .await
             .map_err(db_err)?;
-
-            for activity_id in entry.activities() {
-                sqlx::query("INSERT INTO entry_activities (entry_id, activity_id) VALUES (?, ?)")
-                    .bind(&entry_id)
-                    .bind(activity_id.value().to_string())
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(db_err)?;
-            }
-
-            for photo_id in entry.photos() {
-                sqlx::query("INSERT INTO entry_photos (entry_id, photo_id) VALUES (?, ?)")
-                    .bind(&entry_id)
-                    .bind(photo_id.value().to_string())
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(db_err)?;
-            }
-
-            for voice_memo_id in entry.voice_memos() {
-                sqlx::query(
-                    "INSERT INTO entry_voice_memos (entry_id, voice_memo_id) VALUES (?, ?)",
-                )
-                .bind(&entry_id)
-                .bind(voice_memo_id.value().to_string())
-                .execute(&mut *tx)
-                .await
-                .map_err(db_err)?;
-            }
         }
 
         tx.commit().await.map_err(db_err)?;

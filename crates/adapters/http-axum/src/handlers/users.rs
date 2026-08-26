@@ -97,6 +97,7 @@ pub async fn handle_delete(
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> Result<StatusCode, ApiError> {
     let deps = delete_user::Deps {
+        dimensions: state.dimensions.clone(),
         user_query: state.user_query,
         entry_query: state.entry_query,
         cascade: state.cascade,
@@ -115,6 +116,7 @@ pub async fn handle_clear_data(
     AuthenticatedUser(user_id): AuthenticatedUser,
 ) -> Result<StatusCode, ApiError> {
     let deps = clear_data::Deps {
+        dimensions: state.dimensions.clone(),
         entry_query: state.entry_query,
         cascade: state.cascade,
         media_storage: state.media_storage,

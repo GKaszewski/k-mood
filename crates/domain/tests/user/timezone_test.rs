@@ -2,31 +2,52 @@ use domain::errors::DomainError;
 use domain::user::Timezone;
 
 #[test]
-fn valid_timezone_is_created() {
-    let tz = Timezone::new("Europe/Warsaw").unwrap();
-    assert_eq!(tz.value(), "Europe/Warsaw");
+fn a_zone_from_the_iana_database_is_accepted() {
+    assert_eq!(
+        Timezone::new("Europe/Warsaw").unwrap().value(),
+        "Europe/Warsaw"
+    );
+    assert_eq!(
+        Timezone::new("America/New_York").unwrap().value(),
+        "America/New_York"
+    );
 }
 
 #[test]
-fn timezone_trims_whitespace() {
-    let tz = Timezone::new("  America/New_York  ").unwrap();
-    assert_eq!(tz.value(), "America/New_York");
+fn utc_is_a_real_zone_and_is_accepted() {
+    assert_eq!(Timezone::new("UTC").unwrap().value(), "UTC");
 }
 
 #[test]
-fn empty_timezone_is_rejected() {
-    let result = Timezone::new("");
-    assert!(matches!(result, Err(DomainError::InvalidInput(_))));
+fn surrounding_whitespace_is_trimmed() {
+    assert_eq!(
+        Timezone::new("  America/New_York  ").unwrap().value(),
+        "America/New_York"
+    );
 }
 
 #[test]
-fn timezone_without_slash_is_rejected() {
-    let result = Timezone::new("UTC");
-    assert!(matches!(result, Err(DomainError::InvalidInput(_))));
+fn a_zone_that_merely_looks_like_one_is_rejected() {
+    assert!(matches!(
+        Timezone::new("Foo/Bar"),
+        Err(DomainError::InvalidInput(_))
+    ));
+    assert!(matches!(
+        Timezone::new("Europe/Atlantis"),
+        Err(DomainError::InvalidInput(_))
+    ));
 }
 
 #[test]
-fn from_persistence_bypasses_validation() {
-    let tz = Timezone::from_persistence("UTC".into());
-    assert_eq!(tz.value(), "UTC");
+fn an_empty_zone_is_rejected() {
+    assert!(matches!(
+        Timezone::new(""),
+        Err(DomainError::InvalidInput(_))
+    ));
+}
+
+#[test]
+fn a_stored_zone_that_cannot_be_resolved_is_refused_on_load() {
+    assert!(Timezone::from_persistence("Foo/Bar").is_err());
+    assert!(Timezone::from_persistence("Europe/Warsaw").is_ok());
 }

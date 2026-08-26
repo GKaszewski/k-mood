@@ -1,24 +1,44 @@
 use crate::activity::Activity;
-use crate::entry::MoodEntry;
+use crate::cycle::CycleStartRestore;
+use crate::dimension::ComposedEntry;
 use crate::errors::DomainError;
+use crate::metric::DailyMetric;
 use crate::reminder::Reminder;
+use crate::user::UserPreferences;
 
 pub struct MediaBlob {
     pub id: String,
     pub data: Vec<u8>,
 }
 
-pub struct UserExport {
-    pub entries: Vec<MoodEntry>,
-    pub activities: Vec<Activity>,
-    pub reminders: Vec<Reminder>,
+pub struct BackupMedia {
     pub photos: Vec<MediaBlob>,
     pub voice_memos: Vec<MediaBlob>,
 }
 
+pub struct UserBackup {
+    pub entries: Vec<ComposedEntry>,
+    pub metrics: Vec<DailyMetric>,
+    pub cycle_starts: Vec<CycleStartRestore>,
+    pub activities: Vec<Activity>,
+    pub reminders: Vec<Reminder>,
+    pub preferences: UserPreferences,
+    pub media: BackupMedia,
+}
+
+pub struct SharedExtract {
+    pub entries: Vec<ComposedEntry>,
+    pub activities: Vec<Activity>,
+}
+
 #[async_trait::async_trait]
-pub trait ExportPort: Send + Sync {
-    async fn export_user_data(&self, data: &UserExport) -> Result<Vec<u8>, DomainError>;
+pub trait BackupWriterPort: Send + Sync {
+    async fn write(&self, backup: &UserBackup) -> Result<Vec<u8>, DomainError>;
+}
+
+#[async_trait::async_trait]
+pub trait ExtractWriterPort: Send + Sync {
+    async fn write(&self, extract: &SharedExtract) -> Result<Vec<u8>, DomainError>;
 }
 
 #[async_trait::async_trait]
@@ -26,6 +46,7 @@ pub trait ImportSourcePort: Send + Sync {
     async fn read_entries(&self, data: &[u8]) -> Result<Vec<ImportedRow>, DomainError>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportedRow {
     pub mood: u8,
     pub date: String,

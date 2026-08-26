@@ -3,10 +3,7 @@
 pub struct CreateEntryRequest {
     pub mood: u8,
     pub logged_at: Option<String>,
-    pub activity_ids: Option<Vec<String>>,
-    pub content: Option<String>,
-    pub photo_ids: Option<Vec<String>>,
-    pub voice_memo_ids: Option<Vec<String>>,
+    pub dimensions: Option<Vec<crate::dimension::DimensionPayload>>,
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
@@ -14,10 +11,7 @@ pub struct CreateEntryRequest {
 pub struct UpdateEntryRequest {
     pub mood: u8,
     pub logged_at: Option<String>,
-    pub activity_ids: Option<Vec<String>>,
-    pub content: Option<String>,
-    pub photo_ids: Option<Vec<String>>,
-    pub voice_memo_ids: Option<Vec<String>>,
+    pub dimensions: Option<Vec<crate::dimension::DimensionPayload>>,
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]

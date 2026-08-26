@@ -24,7 +24,7 @@ impl domain::ports::UserQueryPort for SqliteUserQueryRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(db_err)?;
-        Ok(row.map(UserRow::into_domain))
+        row.map(UserRow::into_domain).transpose()
     }
 
     async fn find_by_username(&self, username: &Username) -> Result<Option<User>, DomainError> {
@@ -33,7 +33,7 @@ impl domain::ports::UserQueryPort for SqliteUserQueryRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(db_err)?;
-        Ok(row.map(UserRow::into_domain))
+        row.map(UserRow::into_domain).transpose()
     }
 
     async fn find_by_email(&self, email: &Email) -> Result<Option<User>, DomainError> {
@@ -42,6 +42,6 @@ impl domain::ports::UserQueryPort for SqliteUserQueryRepository {
             .fetch_optional(&self.pool)
             .await
             .map_err(db_err)?;
-        Ok(row.map(UserRow::into_domain))
+        row.map(UserRow::into_domain).transpose()
     }
 }

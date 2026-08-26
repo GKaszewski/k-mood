@@ -1,0 +1,15 @@
+[package]
+name = "weather"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+domain.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

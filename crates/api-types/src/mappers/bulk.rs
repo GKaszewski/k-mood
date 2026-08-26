@@ -5,7 +5,7 @@ use application::import::use_cases::import_entries::ImportResult;
 
 use crate::errors::ApiValidationError;
 use crate::requests::ReplaceActivityRequest;
-use crate::responses::{CorrelationResponse, ImportResultResponse};
+use crate::responses::ImportResultResponse;
 
 impl ReplaceActivityRequest {
     pub fn into_parts(
@@ -15,16 +15,6 @@ impl ReplaceActivityRequest {
         let old = super::shared::parse_uuid(&self.old_activity_id)?.into();
         let new = super::shared::parse_uuid(&self.new_activity_id)?.into();
         Ok((user_id, old, new))
-    }
-}
-
-pub fn correlation_response(
-    activity_id: ActivityId,
-    correlation: Option<f64>,
-) -> CorrelationResponse {
-    CorrelationResponse {
-        activity_id: activity_id.value(),
-        correlation,
     }
 }
 

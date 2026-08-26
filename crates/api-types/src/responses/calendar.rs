@@ -7,6 +7,8 @@ use super::EntryResponse;
 pub struct CalendarDayResponse {
     pub date: NaiveDate,
     pub entries: Vec<EntryResponse>,
-    pub dominant_mood: Option<u8>,
-    pub dominant_mood_label: Option<String>,
+    pub day_mood: Option<f64>,
+    pub mood: Option<u8>,
+    pub mood_label: Option<String>,
+    pub cycle_day: Option<u16>,
 }

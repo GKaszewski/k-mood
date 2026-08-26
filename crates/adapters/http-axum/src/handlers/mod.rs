@@ -1,8 +1,14 @@
 pub mod activities;
 pub mod auth;
+pub mod correlations;
+pub mod cycle;
+pub mod data;
 pub mod entries;
 pub mod import_export;
 pub mod media;
+pub mod metrics;
+pub mod providers;
 pub mod push;
 pub mod reminders;
+pub mod tokens;
 pub mod users;

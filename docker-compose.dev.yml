@@ -10,5 +10,17 @@ services:
       - RUST_LOG=debug
     restart: unless-stopped
 
+  worker:
+    build: .
+    entrypoint: ["k-mood-worker"]
+    volumes:
+      - k-mood-data:/data
+      - ./config.dev.toml:/data/config.toml:ro
+    environment:
+      - RUST_LOG=debug
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   k-mood-data:

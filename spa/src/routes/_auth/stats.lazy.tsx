@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MoodTrendChart } from "@/components/stats/mood-trend-chart"
 import { MoodDistribution } from "@/components/stats/mood-distribution"
 import { MoodHeatmap } from "@/components/stats/mood-heatmap"
-import { ActivityCorrelations } from "@/components/stats/activity-correlations"
+import { MoodCorrelations } from "@/components/stats/mood-correlations"
 import { StatCard } from "@/components/stats/stat-card"
 import { useMoodStats, usePeriodEntries } from "@/hooks/use-stats"
 import { useYearCalendar } from "@/hooks/use-year-calendar"
@@ -57,18 +57,18 @@ function StatsPage() {
               }
             />
             <StatCard label="Streak" value={`${stats.currentStreak}d`} />
-            <StatCard label="Entries" value={stats.totalEntries ?? 0} />
+            <StatCard label="Entries" value={stats.totalEntries} />
           </div>
 
           {trendEntries?.length ? (
             <MoodTrendChart entries={trendEntries} period={period} />
           ) : null}
 
-          {stats.frequency?.length ? (
+          {stats.frequency.length ? (
             <MoodDistribution frequency={stats.frequency} />
           ) : null}
 
-          <ActivityCorrelations />
+          <MoodCorrelations />
         </>
       ) : null}
 

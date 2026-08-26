@@ -1,15 +1,23 @@
 use std::sync::Arc;
 
+use domain::dimension::{DimensionKind, DimensionValue};
 use domain::entry::Mood;
-use domain::testing::{test_entry, test_logged_at, test_user};
+use domain::ports::EntryDimensionPort;
+use domain::testing::{InMemoryDimensionStore, InMemoryStore, test_logged_at, test_user};
 
 use application::entry::commands::CreateEntryCommand;
 use application::entry::use_cases::create_entry;
 
-fn deps() -> (Arc<domain::testing::InMemoryStore>, create_entry::Deps) {
-    let store = Arc::new(domain::testing::InMemoryStore::new());
+fn deps() -> (Arc<InMemoryStore>, create_entry::Deps) {
+    let store = Arc::new(InMemoryStore::new());
+    let content: Arc<dyn EntryDimensionPort> =
+        Arc::new(InMemoryDimensionStore::new(DimensionKind::Content));
+    let activities: Arc<dyn EntryDimensionPort> =
+        Arc::new(InMemoryDimensionStore::new(DimensionKind::Activities));
+
     let deps = create_entry::Deps {
         entries: store.clone(),
+        dimensions: vec![content, activities],
         events: store.clone(),
     };
     (store, deps)
@@ -24,10 +32,7 @@ async fn creates_entry_with_required_fields() {
         user_id: user.id().clone(),
         mood: Mood::Good,
         logged_at: test_logged_at(),
-        activities: vec![],
-        content: None,
-        photos: vec![],
-        voice_memos: vec![],
+        dimensions: vec![],
     };
 
     let entry = create_entry::execute(cmd, &deps).await.unwrap();
@@ -38,7 +43,7 @@ async fn creates_entry_with_required_fields() {
 }
 
 #[tokio::test]
-async fn creates_entry_with_all_optional_fields() {
+async fn creates_entry_with_optional_dimensions() {
     let (store, deps) = deps();
     let user = test_user("bob");
     let activity = domain::testing::test_activity(user.id().clone(), "gaming");
@@ -47,16 +52,14 @@ async fn creates_entry_with_all_optional_fields() {
         user_id: user.id().clone(),
         mood: Mood::Rad,
         logged_at: test_logged_at(),
-        activities: vec![activity.id().clone()],
-        content: Some(domain::testing::test_content("great day")),
-        photos: vec![],
-        voice_memos: vec![],
+        dimensions: vec![
+            DimensionValue::Content(domain::testing::test_content("great day")),
+            DimensionValue::activities(vec![activity.id().clone()]),
+        ],
     };
 
     let entry = create_entry::execute(cmd, &deps).await.unwrap();
 
     assert_eq!(entry.mood(), Mood::Rad);
-    assert_eq!(entry.activities().len(), 1);
-    assert!(entry.content().is_some());
     assert_eq!(store.entry_count(), 1);
 }

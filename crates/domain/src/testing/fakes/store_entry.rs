@@ -55,28 +55,25 @@ impl crate::ports::MoodEntryCommandPort for InMemoryStore {
         old_activity_id: &ActivityId,
         new_activity_id: &ActivityId,
     ) -> Result<u64, DomainError> {
-        let mut store = self.entries.write().unwrap();
+        let entries = self.entries.read().unwrap();
+        let mut assignments = self.entry_activities.write().unwrap();
         let mut count = 0u64;
-        for entry in store.values_mut() {
-            if entry.user_id() != user_id {
+
+        for (entry_id, activities) in assignments.iter_mut() {
+            let owned_by_user = entries
+                .get(entry_id)
+                .is_some_and(|entry| entry.user_id() == user_id);
+            if !owned_by_user || !activities.contains(old_activity_id) {
                 continue;
             }
-            let activities: Vec<_> = entry.activities().to_vec();
-            if activities.contains(old_activity_id) {
-                let replaced: Vec<_> = activities
-                    .into_iter()
-                    .map(|a| {
-                        if &a == old_activity_id {
-                            new_activity_id.clone()
-                        } else {
-                            a
-                        }
-                    })
-                    .collect();
-                entry.set_activities(replaced);
-                count += 1;
+            for activity in activities.iter_mut() {
+                if activity == old_activity_id {
+                    *activity = new_activity_id.clone();
+                }
             }
+            count += 1;
         }
+
         Ok(count)
     }
 }
@@ -153,7 +150,15 @@ impl crate::ports::MoodEntryQueryPort for InMemoryStore {
             .read()
             .unwrap()
             .values()
-            .filter(|e| e.user_id() == user_id && e.activities().contains(activity_id))
+            .filter(|e| {
+                e.user_id() == user_id
+                    && self
+                        .entry_activities
+                        .read()
+                        .unwrap()
+                        .get(e.id())
+                        .is_some_and(|ids| ids.contains(activity_id))
+            })
             .cloned()
             .collect())
     }

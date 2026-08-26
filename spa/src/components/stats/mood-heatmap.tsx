@@ -46,8 +46,8 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
 
   const moodMap = new Map<string, number>()
   for (const day of days) {
-    if (day.dominantMood) {
-      moodMap.set(day.date, day.dominantMood)
+    if (day.mood) {
+      moodMap.set(day.date, day.mood)
     }
   }
 
@@ -92,7 +92,7 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
                     key={weekIdx}
                     className="w-[11px] text-center text-[8px] leading-[11px] text-muted-foreground"
                   >
-                    {showLabel ? MONTH_LABELS[firstDayInWeek!.getMonth()] : ""}
+                    {showLabel ? MONTH_LABELS[firstDayInWeek.getMonth()] : ""}
                   </div>
                 )
               })}

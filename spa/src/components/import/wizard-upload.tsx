@@ -22,7 +22,7 @@ export function WizardUpload({ onParsed }: WizardUploadProps) {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const file = e.dataTransfer.files[0]
+    const file = Array.from(e.dataTransfer.files).at(0)
     if (file) handleFile(file)
   }
 

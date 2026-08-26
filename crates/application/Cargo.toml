@@ -15,4 +15,6 @@ tracing.workspace = true
 
 [dev-dependencies]
 domain = { workspace = true, features = ["test-helpers"] }
+exporter.workspace = true
+importer.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

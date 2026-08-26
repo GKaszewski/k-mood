@@ -11,3 +11,7 @@ sqlx.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+domain = { workspace = true, features = ["test-helpers"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

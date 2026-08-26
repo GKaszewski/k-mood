@@ -1,8 +1,9 @@
 use chrono::{Duration, FixedOffset, TimeZone};
 
-use domain::activity::ActivityId;
+use domain::entry::Date;
 use domain::entry::{Mood, MoodEntry};
 use domain::services::MoodAnalyzerService;
+use domain::user::Timezone;
 use domain::user::UserId;
 
 fn entry_with_mood(mood: Mood, days_ago: i64) -> MoodEntry {
@@ -10,14 +11,6 @@ fn entry_with_mood(mood: Mood, days_ago: i64) -> MoodEntry {
     let logged_at =
         offset.from_utc_datetime(&(chrono::Utc::now() - Duration::days(days_ago)).naive_utc());
     MoodEntry::new(UserId::generate(), mood, logged_at)
-}
-
-fn entry_with_mood_and_activity(mood: Mood, activity: &ActivityId) -> MoodEntry {
-    let offset = FixedOffset::east_opt(0).unwrap();
-    let logged_at = offset.from_utc_datetime(&chrono::Utc::now().naive_utc());
-    let mut entry = MoodEntry::new(UserId::generate(), mood, logged_at);
-    entry.set_activities(vec![activity.clone()]);
-    entry
 }
 
 #[test]
@@ -61,61 +54,43 @@ fn mood_frequency_counts_each_mood() {
 
 #[test]
 fn streak_counts_consecutive_days() {
-    let entries = vec![
-        entry_with_mood(Mood::Good, 0),
-        entry_with_mood(Mood::Good, 1),
-        entry_with_mood(Mood::Good, 2),
-    ];
+    let dates = dates_ago(&[0, 1, 2]);
 
-    assert_eq!(MoodAnalyzerService::current_streak(&entries), 3);
+    assert_eq!(MoodAnalyzerService::current_streak(&dates, today()), 3);
 }
 
 #[test]
 fn streak_breaks_on_gap() {
-    let entries = vec![
-        entry_with_mood(Mood::Good, 0),
-        entry_with_mood(Mood::Good, 1),
-        entry_with_mood(Mood::Good, 3),
-    ];
+    let dates = dates_ago(&[0, 1, 3]);
 
-    assert_eq!(MoodAnalyzerService::current_streak(&entries), 2);
+    assert_eq!(MoodAnalyzerService::current_streak(&dates, today()), 2);
 }
 
 #[test]
-fn streak_of_empty_entries_is_zero() {
-    assert_eq!(MoodAnalyzerService::current_streak(&[]), 0);
+fn streak_of_no_dates_is_zero() {
+    assert_eq!(MoodAnalyzerService::current_streak(&[], today()), 0);
 }
 
 #[test]
-fn activity_correlation_positive_when_mood_higher_with_activity() {
-    let activity = ActivityId::generate();
-    let entries = vec![
-        entry_with_mood_and_activity(Mood::Rad, &activity),
-        entry_with_mood_and_activity(Mood::Good, &activity),
-        entry_with_mood(Mood::Meh, 0),
-        entry_with_mood(Mood::Bad, 1),
-    ];
+fn streak_is_zero_when_the_last_entry_is_old() {
+    let dates = dates_ago(&[3, 4]);
 
-    let correlation = MoodAnalyzerService::activity_mood_correlation(&entries, &activity).unwrap();
-    assert!(correlation > 0.0);
+    assert_eq!(MoodAnalyzerService::current_streak(&dates, today()), 0);
 }
 
 #[test]
-fn activity_correlation_is_none_when_never_used() {
-    let activity = ActivityId::generate();
-    let entries = vec![entry_with_mood(Mood::Good, 0)];
+fn the_streak_is_measured_in_the_users_own_days_not_utc_days() {
+    // 2025-03-15T20:00Z is already the 16th in Auckland and still the 15th in UTC.
+    let evening: chrono::DateTime<FixedOffset> = "2025-03-15T20:00:00+00:00".parse().unwrap();
+    let auckland = Timezone::new("Pacific/Auckland").unwrap();
 
-    let result = MoodAnalyzerService::activity_mood_correlation(&entries, &activity);
-    assert!(result.is_none());
-}
+    let logged = Date::from_instant(&evening, &auckland);
+    let their_today = Date::from_instant(&evening, &auckland);
 
-#[test]
-fn streak_is_zero_when_last_entry_is_old() {
-    let entries = vec![
-        entry_with_mood(Mood::Good, 3),
-        entry_with_mood(Mood::Good, 4),
-    ];
-    assert_eq!(MoodAnalyzerService::current_streak(&entries), 0);
+    assert_eq!(
+        MoodAnalyzerService::current_streak(&[logged], their_today),
+        1
+    );
 }
 
 #[test]
@@ -124,14 +99,20 @@ fn mood_frequency_on_empty_is_empty() {
     assert!(freq.is_empty());
 }
 
-#[test]
-fn activity_correlation_is_none_when_all_entries_have_activity() {
-    let activity = ActivityId::generate();
-    let entries = vec![
-        entry_with_mood_and_activity(Mood::Good, &activity),
-        entry_with_mood_and_activity(Mood::Rad, &activity),
-    ];
+fn today() -> Date {
+    Date::from_instant(
+        &chrono::Utc::now().fixed_offset(),
+        &Timezone::new("UTC").unwrap(),
+    )
+}
 
-    let result = MoodAnalyzerService::activity_mood_correlation(&entries, &activity);
-    assert!(result.is_none());
+fn dates_ago(offsets: &[i64]) -> Vec<Date> {
+    let utc = Timezone::new("UTC").unwrap();
+    offsets
+        .iter()
+        .map(|days| {
+            let instant = chrono::Utc::now() - chrono::Duration::days(*days);
+            Date::from_instant(&instant.fixed_offset(), &utc)
+        })
+        .collect()
 }

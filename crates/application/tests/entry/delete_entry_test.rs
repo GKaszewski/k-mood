@@ -15,6 +15,7 @@ async fn deletes_existing_entry() {
     store.save(&entry).await.unwrap();
 
     let deps = delete_entry::Deps {
+        dimensions: vec![],
         command: store.clone(),
         query: store.clone(),
         events: store.clone(),
@@ -33,6 +34,7 @@ async fn deletes_existing_entry() {
 async fn deleting_nonexistent_entry_fails() {
     let store = Arc::new(InMemoryStore::new());
     let deps = delete_entry::Deps {
+        dimensions: vec![],
         command: store.clone(),
         query: store.clone(),
         events: store.clone(),
@@ -56,6 +58,7 @@ async fn rejects_delete_by_different_user() {
     store.save(&entry).await.unwrap();
 
     let deps = delete_entry::Deps {
+        dimensions: vec![],
         command: store.clone(),
         query: store.clone(),
         events: store.clone(),

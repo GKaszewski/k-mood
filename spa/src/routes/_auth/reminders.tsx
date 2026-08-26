@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -22,7 +22,6 @@ import {
 } from "@/hooks/use-reminders"
 import type { ReminderResponse, CreateReminderRequest } from "@/api/schema"
 import { Plus, Trash2, ArrowLeft } from "lucide-react"
-import { Link } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/_auth/reminders")({
   component: RemindersPage,
@@ -293,7 +292,7 @@ function ReminderForm({
               {schedule[key] && (
                 <input
                   type="time"
-                  value={schedule[key]!}
+                  value={schedule[key]}
                   onChange={(e) => setTime(key, e.target.value)}
                   className="h-9 rounded-md border bg-transparent px-3 text-sm"
                 />

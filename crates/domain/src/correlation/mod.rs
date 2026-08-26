@@ -1,0 +1,25 @@
+mod adjustment;
+mod agreement;
+mod coefficient;
+mod correlation_input;
+mod correlation_strategy;
+mod family;
+mod kendall;
+mod mean_difference;
+mod normal;
+mod observation;
+mod p_value;
+mod pearson;
+mod ranks;
+mod series_shape;
+mod welch;
+
+pub use adjustment::{Adjustment, Tested};
+pub use agreement::Agreement;
+pub use coefficient::Coefficient;
+pub use correlation_input::CorrelationInput;
+pub use correlation_strategy::CorrelationStrategy;
+pub use family::Family;
+pub use observation::Observation;
+pub use p_value::PValue;
+pub use series_shape::SeriesShape;

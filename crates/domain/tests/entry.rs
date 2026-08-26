@@ -9,3 +9,9 @@ mod mood_entry_test;
 
 #[path = "entry/date_range_test.rs"]
 mod date_range_test;
+
+#[path = "entry/date_test.rs"]
+mod date_test;
+
+#[path = "entry/day_mood_test.rs"]
+mod day_mood_test;

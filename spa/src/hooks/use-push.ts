@@ -20,6 +20,26 @@ function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
+function sameKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
+  if (!a) return false
+  const bytes = new Uint8Array(a)
+  return bytes.length === b.length && bytes.every((v, i) => v === b[i])
+}
+
+// A subscription created with an older VAPID key makes subscribe() throw
+// InvalidStateError, so drop it before asking for a new one.
+async function dropStaleSubscription(
+  reg: ServiceWorkerRegistration,
+  keyBytes: Uint8Array
+): Promise<void> {
+  const existing = await reg.pushManager.getSubscription()
+  if (!existing) return
+  if (sameKey(existing.options.applicationServerKey, keyBytes)) return
+
+  await push.unsubscribe(existing.endpoint).catch(() => {})
+  await existing.unsubscribe()
+}
+
 export function usePushNotifications() {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
@@ -55,6 +75,8 @@ export function usePushNotifications() {
 
       const reg = await navigator.serviceWorker.ready
       const keyBytes = urlBase64ToUint8Array(vapidKey.data.publicKey)
+      await dropStaleSubscription(reg, keyBytes)
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: keyBytes.buffer as ArrayBuffer,

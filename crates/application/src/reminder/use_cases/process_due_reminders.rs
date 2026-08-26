@@ -23,11 +23,17 @@ pub async fn execute(deps: &Deps) -> Result<u64, ApplicationError> {
 
     let mut sent_count = 0u64;
 
+    // One user with no reachable device must not stop the sweep for everyone
+    // scheduled behind them.
     for reminder in &reminders {
         if should_send(reminder, &deps.user_query).await? {
             tracing::info!(user_id = %reminder.user_id(), "sending reminder");
-            deps.sender.send_reminder(reminder.user_id()).await?;
-            sent_count += 1;
+            match deps.sender.send_reminder(reminder.user_id()).await {
+                Ok(()) => sent_count += 1,
+                Err(error) => {
+                    tracing::warn!(user_id = %reminder.user_id(), %error, "could not send reminder")
+                }
+            }
         }
     }
 
@@ -48,26 +54,12 @@ async fn should_send(
         }
     };
 
-    let now = match user.timezone() {
-        Some(tz) => {
-            let tz: chrono_tz::Tz = match tz.value().parse() {
-                Ok(tz) => tz,
-                Err(_) => {
-                    tracing::warn!(
-                        user_id = %reminder.user_id(),
-                        timezone = tz.value(),
-                        "invalid timezone for user"
-                    );
-                    return Ok(false);
-                }
-            };
-            Utc::now().with_timezone(&tz)
-        }
-        None => {
-            tracing::debug!(user_id = %reminder.user_id(), "user has no timezone set, skipping reminder");
-            return Ok(false);
-        }
+    let Some(timezone) = user.timezone() else {
+        tracing::debug!(user_id = %reminder.user_id(), "user has no timezone set, skipping reminder");
+        return Ok(false);
     };
+
+    let now = Utc::now().with_timezone(&timezone.resolve());
 
     let weekday = now.weekday();
     let scheduled_time = match reminder.schedule().time_for(weekday) {

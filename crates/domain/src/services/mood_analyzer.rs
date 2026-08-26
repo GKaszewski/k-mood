@@ -1,7 +1,4 @@
-use chrono::Utc;
-
-use crate::activity::ActivityId;
-use crate::entry::{Mood, MoodEntry};
+use crate::entry::{Date, Mood, MoodEntry};
 
 pub struct MoodAnalyzerService;
 
@@ -32,64 +29,28 @@ impl MoodAnalyzerService {
             .collect()
     }
 
-    #[tracing::instrument(skip(entries), fields(entry_count = entries.len()))]
-    pub fn current_streak(entries: &[MoodEntry]) -> usize {
-        if entries.is_empty() {
-            return 0;
-        }
-
-        let mut dates: Vec<_> = entries.iter().map(|e| e.logged_at().date_naive()).collect();
+    #[tracing::instrument(skip(dates), fields(date_count = dates.len()))]
+    pub fn current_streak(dates: &[Date], today: Date) -> usize {
+        let mut dates = dates.to_vec();
         dates.sort();
         dates.dedup();
 
-        let today = Utc::now().date_naive();
+        let Some(most_recent) = dates.last() else {
+            return 0;
+        };
 
-        let last_date = *dates.last().unwrap();
-        let diff_to_today = (today - last_date).num_days();
-        if diff_to_today > 1 {
+        if today.days_since(most_recent) > 1 {
             return 0;
         }
 
         let mut streak = 1;
         for window in dates.windows(2).rev() {
-            let diff = window[1] - window[0];
-            if diff.num_days() == 1 {
-                streak += 1;
-            } else {
+            if window[1].days_since(&window[0]) != 1 {
                 break;
             }
+            streak += 1;
         }
 
         streak
-    }
-
-    #[tracing::instrument(skip(entries), fields(entry_count = entries.len()))]
-    pub fn activity_mood_correlation(
-        entries: &[MoodEntry],
-        activity_id: &ActivityId,
-    ) -> Option<f64> {
-        let with: Vec<_> = entries
-            .iter()
-            .filter(|e| e.activities().contains(activity_id))
-            .collect();
-
-        let without: Vec<_> = entries
-            .iter()
-            .filter(|e| !e.activities().contains(activity_id))
-            .collect();
-
-        let avg_with = Self::average_mood_from_refs(&with)?;
-        let avg_without = Self::average_mood_from_refs(&without)?;
-
-        Some(avg_with - avg_without)
-    }
-
-    fn average_mood_from_refs(entries: &[&MoodEntry]) -> Option<f64> {
-        if entries.is_empty() {
-            return None;
-        }
-
-        let sum: u32 = entries.iter().map(|e| e.mood().value() as u32).sum();
-        Some(sum as f64 / entries.len() as f64)
     }
 }

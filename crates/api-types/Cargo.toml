@@ -11,4 +11,8 @@ serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+serde_json.workspace = true
 utoipa.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
