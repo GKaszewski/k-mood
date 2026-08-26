@@ -102,7 +102,7 @@ function ReminderCard({ reminder }: { reminder: ReminderResponse }) {
   const handleUpdate = (schedule: CreateReminderRequest) => {
     updateReminder.mutate(
       { id: reminder.id, body: { schedule } },
-      { onSuccess: () => setEditing(false) },
+      { onSuccess: () => setEditing(false) }
     )
   }
 
@@ -133,9 +133,7 @@ function ReminderCard({ reminder }: { reminder: ReminderResponse }) {
         <div className="flex flex-wrap gap-2">
           {DAYS.map(({ key, label }) => {
             const time = reminder.schedule[key]
-            return (
-              <DayPill key={key} label={label} time={time} />
-            )
+            return <DayPill key={key} label={label} time={time} />
           })}
         </div>
 
@@ -151,7 +149,11 @@ function ReminderCard({ reminder }: { reminder: ReminderResponse }) {
           <AlertDialog>
             <AlertDialogTrigger
               render={
-                <Button variant="outline" size="sm" className="text-destructive" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                />
               }
             >
               <Trash2 className="h-4 w-4" />
@@ -217,18 +219,20 @@ function ReminderForm({
   isPending: boolean
 }) {
   const defaultTime = "20:00"
-  const [schedule, setSchedule] = useState<Record<DayKey, string | null>>(() => {
-    if (initial) return { ...initial }
-    return {
-      monday: null,
-      tuesday: null,
-      wednesday: null,
-      thursday: null,
-      friday: null,
-      saturday: null,
-      sunday: null,
+  const [schedule, setSchedule] = useState<Record<DayKey, string | null>>(
+    () => {
+      if (initial) return { ...initial }
+      return {
+        monday: null,
+        tuesday: null,
+        wednesday: null,
+        thursday: null,
+        friday: null,
+        saturday: null,
+        sunday: null,
+      }
     }
-  })
+  )
 
   const toggleDay = (day: DayKey) => {
     setSchedule((prev) => ({
@@ -262,7 +266,12 @@ function ReminderForm({
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">Select days</span>
-          <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={selectAll}
+            className="text-xs"
+          >
             {DAYS.every(({ key }) => schedule[key]) ? "Clear all" : "Every day"}
           </Button>
         </div>

@@ -11,9 +11,7 @@ export function ActivityCorrelations() {
 
   const { data: correlations, isLoading } = useAllCorrelations(activeIds)
 
-  const activityMap = new Map(
-    (activities ?? []).map((a) => [a.id, a.name])
-  )
+  const activityMap = new Map((activities ?? []).map((a) => [a.id, a.name]))
 
   const sorted = [...(correlations ?? [])].sort(
     (a, b) => Math.abs(b.correlation!) - Math.abs(a.correlation!)
@@ -54,7 +52,7 @@ function CorrelationBar({ name, value }: { name: string; value: number }) {
           }`}
           style={{ width: `${pct / 2}%` }}
         />
-        <div className="absolute left-1/2 top-0 h-full w-px bg-muted-foreground/30" />
+        <div className="absolute top-0 left-1/2 h-full w-px bg-muted-foreground/30" />
       </div>
       <span
         className={`w-12 shrink-0 text-right text-xs font-medium ${
