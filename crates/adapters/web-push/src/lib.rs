@@ -83,16 +83,13 @@ impl domain::ports::ReminderSenderPort for WebPushSender {
         let payload_str = payload.to_string();
 
         for sub in &subscriptions {
-            let subscription_info =
-                SubscriptionInfo::new(sub.endpoint(), sub.p256dh(), sub.auth());
+            let subscription_info = SubscriptionInfo::new(sub.endpoint(), sub.p256dh(), sub.auth());
 
-            let mut sig_builder = VapidSignatureBuilder::from_base64(
-                &self.vapid_private_key,
-                &subscription_info,
-            )
-            .map_err(|e| {
-                DomainError::InvalidInput(format!("failed to build VAPID signature: {e}"))
-            })?;
+            let mut sig_builder =
+                VapidSignatureBuilder::from_base64(&self.vapid_private_key, &subscription_info)
+                    .map_err(|e| {
+                        DomainError::InvalidInput(format!("failed to build VAPID signature: {e}"))
+                    })?;
 
             sig_builder.add_claim("sub", &*self.vapid_subject);
             let signature = sig_builder.build().map_err(|e| {
