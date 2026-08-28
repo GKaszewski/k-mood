@@ -8,6 +8,7 @@ import {
 import { getRouter } from "./router"
 import { toast, Toaster } from "@/components/ui/toast"
 import { ApiError } from "@/api/client"
+import { registerServiceWorker } from "@/lib/service-worker"
 import "./styles.css"
 
 const queryClient = new QueryClient({
@@ -37,6 +38,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </QueryClientProvider>
 )
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js")
-}
+registerServiceWorker((applyUpdate) => {
+  toast.add({
+    title: "A new version is ready",
+    description: "Reload to pick it up.",
+    type: "info",
+    timeout: 0,
+    actionProps: { children: "Reload", onClick: applyUpdate },
+  })
+})

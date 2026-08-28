@@ -8,7 +8,9 @@ use application::api_token::use_cases::authenticate_api_token;
 
 use crate::state::AppState;
 
-use super::authenticated_user::{AuthRejection, bearer_token};
+use domain::api_token::TokenScope;
+
+use super::authentication::{AuthRejection, bearer_token};
 
 pub struct ImportingProvider {
     pub user_id: UserId,
@@ -34,9 +36,13 @@ where
             secrets: app_state.api_token_secrets,
         };
 
-        let token = authenticate_api_token::execute(&presented, &deps)
+        let token = authenticate_api_token::execute(&presented, TokenScope::WriteMetrics, &deps)
             .await
-            .map_err(|_| AuthRejection::new("importing needs an api token minted in settings"))?;
+            .map_err(|_| {
+                AuthRejection::new(
+                    "importing needs an api token granting writeMetrics, minted in settings",
+                )
+            })?;
 
         Ok(Self {
             user_id: token.user_id().clone(),

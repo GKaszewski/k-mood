@@ -81,18 +81,20 @@ export const CalendarDayResponse = z.object({
 })
 export type CalendarDayResponse = z.infer<typeof CalendarDayResponse>
 
-export const MoodFrequency = z.object({
+export const MoodFrequencyResponse = z.object({
   mood: Mood,
   moodLabel: z.string(),
   count: z.number(),
 })
-export type MoodFrequency = z.infer<typeof MoodFrequency>
+export type MoodFrequencyResponse = z.infer<typeof MoodFrequencyResponse>
 
 export const MoodStatsResponse = z.object({
   average: z.number().nullable(),
-  frequency: z.array(MoodFrequency),
+  frequency: z.array(MoodFrequencyResponse),
   currentStreak: z.number(),
   totalEntries: z.number(),
+  firstLoggedOn: z.string().nullable(),
+  lastLoggedOn: z.string().nullable(),
 })
 export type MoodStatsResponse = z.infer<typeof MoodStatsResponse>
 
@@ -143,21 +145,25 @@ export const MediaIdResponse = z.object({
 })
 export type MediaIdResponse = z.infer<typeof MediaIdResponse>
 
-export const AuthTokenResponse = z.object({
+export const RefreshedResponse = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
   expiresAt: datetime,
-  user: UserResponse.optional(),
 })
-export type AuthTokenResponse = z.infer<typeof AuthTokenResponse>
+export type RefreshedResponse = z.infer<typeof RefreshedResponse>
 
-export const ApiErrorResponse = z.object({
+export const SignedInResponse = RefreshedResponse.extend({
+  user: UserResponse,
+})
+export type SignedInResponse = z.infer<typeof SignedInResponse>
+
+export const ErrorResponse = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
   }),
 })
-export type ApiErrorResponse = z.infer<typeof ApiErrorResponse>
+export type ErrorResponse = z.infer<typeof ErrorResponse>
 
 export const VapidKeyResponse = z.object({
   publicKey: z.string(),
@@ -249,6 +255,9 @@ export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequest>
 export const ListEntriesParams = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
+  mood: z.number().int().optional(),
+  activity: z.string().optional(),
+  updatedSince: z.string().optional(),
   limit: z.number().int().optional(),
   offset: z.number().int().optional(),
 })
@@ -337,10 +346,18 @@ export const CorrelationRowResponse = z.object({
 })
 export type CorrelationRowResponse = z.infer<typeof CorrelationRowResponse>
 
+export const TokenScope = z.enum([
+  "readJournal",
+  "writeJournal",
+  "writeMetrics",
+  "readProfile",
+])
+export type TokenScope = z.infer<typeof TokenScope>
+
 export const ApiTokenResponse = z.object({
   id: uuid,
   name: z.string(),
-  scope: z.string(),
+  scopes: z.array(TokenScope),
   createdAt: datetime,
   lastUsedAt: datetime.nullable(),
 })
@@ -354,6 +371,7 @@ export type MintedApiTokenResponse = z.infer<typeof MintedApiTokenResponse>
 
 export const MintApiTokenRequest = z.object({
   name: z.string(),
+  scopes: z.array(TokenScope),
 })
 export type MintApiTokenRequest = z.infer<typeof MintApiTokenRequest>
 
@@ -395,6 +413,7 @@ export const RestoreOutcomeResponse = z.object({
   activities: z.int(),
   reminders: z.int(),
   media: z.int(),
+  skipped: z.int(),
   unreadable: z.array(z.string()),
 })
 export type RestoreOutcomeResponse = z.infer<typeof RestoreOutcomeResponse>
@@ -405,3 +424,51 @@ export const SubsonicCredential = z.object({
   password: z.string(),
 })
 export type SubsonicCredential = z.infer<typeof SubsonicCredential>
+
+export const CreateEntriesRequest = z.object({
+  entries: z.array(CreateEntryRequest),
+})
+export type CreateEntriesRequest = z.infer<typeof CreateEntriesRequest>
+
+export const EntryPageResponse = z.object({
+  items: z.array(EntryResponse),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int(),
+  hasMore: z.boolean(),
+})
+export type EntryPageResponse = z.infer<typeof EntryPageResponse>
+
+export const ServerLimitsResponse = z.object({
+  maxBodySize: z.int(),
+  maxContentLength: z.int(),
+  maxPhotos: z.int(),
+  maxVoiceMemos: z.int(),
+  maxActivitiesPerEntry: z.int(),
+  maxEntriesPerPage: z.int(),
+  maxImportDays: z.int(),
+})
+export type ServerLimitsResponse = z.infer<typeof ServerLimitsResponse>
+
+export const MetricKindResponse = z.object({
+  name: z.string(),
+  unit: z.string(),
+  minimum: z.int(),
+  maximum: z.int(),
+})
+export type MetricKindResponse = z.infer<typeof MetricKindResponse>
+
+export const ServerInfoResponse = z.object({
+  version: z.string(),
+  registrationOpen: z.boolean(),
+  pushEnabled: z.boolean(),
+  weatherEnabled: z.boolean(),
+  nowPlayingProvider: z.string().nullable(),
+  accessTokenTtlSeconds: z.int(),
+  limits: ServerLimitsResponse,
+  tokenScopes: z.array(z.object({ name: TokenScope, describes: z.string() })),
+  metricKinds: z.array(MetricKindResponse),
+  moods: z.array(z.object({ value: z.int(), label: z.string() })),
+  weatherConditions: z.array(z.string()),
+})
+export type ServerInfoResponse = z.infer<typeof ServerInfoResponse>

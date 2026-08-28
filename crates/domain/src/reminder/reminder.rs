@@ -1,7 +1,8 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
-use crate::user::UserId;
+use crate::user::{Timezone, UserId};
 
+use super::due_occurrence::{DueOccurrence, occurrence_reached};
 use super::{DaySchedule, ReminderId};
 
 #[derive(Debug, Clone)]
@@ -11,6 +12,7 @@ pub struct Reminder {
     schedule: DaySchedule,
     enabled: bool,
     created_at: DateTime<Utc>,
+    last_sent_at: Option<DateTime<Utc>>,
 }
 
 impl Reminder {
@@ -21,6 +23,7 @@ impl Reminder {
             schedule,
             enabled: true,
             created_at: Utc::now(),
+            last_sent_at: None,
         }
     }
 
@@ -30,6 +33,7 @@ impl Reminder {
         schedule: DaySchedule,
         enabled: bool,
         created_at: DateTime<Utc>,
+        last_sent_at: Option<DateTime<Utc>>,
     ) -> Self {
         Self {
             id,
@@ -37,6 +41,7 @@ impl Reminder {
             schedule,
             enabled,
             created_at,
+            last_sent_at,
         }
     }
 }
@@ -61,6 +66,23 @@ impl Reminder {
     pub fn created_at(&self) -> &DateTime<Utc> {
         &self.created_at
     }
+
+    pub fn last_sent_at(&self) -> Option<DateTime<Utc>> {
+        self.last_sent_at
+    }
+
+    pub fn occurrence_reached(
+        &self,
+        now: DateTime<Utc>,
+        timezone: &Timezone,
+        grace: Duration,
+    ) -> Option<DueOccurrence> {
+        if !self.enabled {
+            return None;
+        }
+
+        occurrence_reached(&self.schedule, self.last_sent_at, now, timezone, grace)
+    }
 }
 
 impl Reminder {
@@ -74,5 +96,9 @@ impl Reminder {
 
     pub fn disable(&mut self) {
         self.enabled = false;
+    }
+
+    pub fn mark_sent(&mut self, occurrence: DueOccurrence) {
+        self.last_sent_at = Some(occurrence.scheduled_for());
     }
 }

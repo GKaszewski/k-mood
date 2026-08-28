@@ -1,12 +1,14 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { AppShell } from "@/components/layout/app-shell"
+import { ConnectionBanner } from "@/components/offline/connection-banner"
 import { Skeleton } from "@/components/ui/skeleton"
+import { hasSession } from "@/api/session"
 import { useEnsureTimezone } from "@/hooks/use-timezone"
+import { useOutboxSync } from "@/hooks/use-outbox"
 
 export const Route = createFileRoute("/_auth")({
   beforeLoad: () => {
-    const token = localStorage.getItem("accessToken")
-    if (!token) {
+    if (!hasSession()) {
       throw redirect({ to: "/login" })
     }
   },
@@ -24,9 +26,13 @@ export const Route = createFileRoute("/_auth")({
 
 function AuthLayout() {
   useEnsureTimezone()
+  useOutboxSync()
 
   return (
     <AppShell>
+      <div className="pt-3">
+        <ConnectionBanner />
+      </div>
       <Outlet />
     </AppShell>
   )

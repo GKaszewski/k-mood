@@ -1,13 +1,13 @@
 use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::State;
 
-use api_types::requests::DateSpanParams;
-use api_types::responses::CorrelationRowResponse;
+use api_types::params::DateSpanParams;
+use api_types::responses::{CorrelationRowResponse, ErrorResponse};
 use application::correlation::queries::CorrelationQuery;
 use application::correlation::use_cases::get_correlations;
 
 use crate::errors::ApiError;
-use crate::extractors::AuthenticatedUser;
+use crate::extractors::{JournalReader, Params};
 use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/correlations", tag = "correlations", security(("bearer" = [])),
@@ -18,12 +18,16 @@ use crate::state::AppState;
                    never ranked by strength. Below the configured minimum sample size a row \
                    carries its day count and no coefficient.",
     params(DateSpanParams),
-    responses((status = 200, body = Vec<CorrelationRowResponse>))
+    responses((status = 200, body = Vec<CorrelationRowResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_list(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<DateSpanParams>,
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<DateSpanParams>,
 ) -> Result<Json<Vec<CorrelationRowResponse>>, ApiError> {
     let span = params.into_span()?;
 
@@ -33,6 +37,7 @@ pub async fn handle_list(
         activities: state.activity_query,
         cycles: state.cycle_query,
         weather_store: state.weather_store,
+        activity_store: state.activity_store,
         preferences: state.preferences_query,
         users: state.user_query,
     };

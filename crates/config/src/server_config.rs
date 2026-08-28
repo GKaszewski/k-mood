@@ -1,3 +1,5 @@
+use super::rate_limit_config::RateLimitConfig;
+
 const DEFAULT_HOST: &str = "0.0.0.0";
 const DEFAULT_PORT: u16 = 3000;
 const DEFAULT_MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
@@ -11,6 +13,7 @@ pub struct ServerConfig {
     pub max_body_size: usize,
     pub spa_dir: String,
     pub cors: CorsConfig,
+    pub rate_limit: RateLimitConfig,
 }
 
 impl Default for ServerConfig {
@@ -21,6 +24,7 @@ impl Default for ServerConfig {
             max_body_size: DEFAULT_MAX_BODY_SIZE,
             spa_dir: DEFAULT_SPA_DIR.into(),
             cors: CorsConfig::default(),
+            rate_limit: RateLimitConfig::default(),
         }
     }
 }

@@ -45,6 +45,7 @@ pub struct InMemoryStore {
     pub(super) dependent_dimensions: RwLock<Vec<std::sync::Arc<InMemoryDimensionStore>>>,
     pub(super) events: RwLock<Vec<EventEnvelope>>,
     pub(super) sent_reminders: RwLock<Vec<UserId>>,
+    pub(super) media_owners: RwLock<HashMap<crate::attachment::MediaRef, UserId>>,
 }
 
 impl InMemoryStore {
@@ -71,6 +72,7 @@ impl InMemoryStore {
             dependent_dimensions: RwLock::new(Vec::new()),
             events: RwLock::new(Vec::new()),
             sent_reminders: RwLock::new(Vec::new()),
+            media_owners: RwLock::new(HashMap::new()),
         }
     }
 

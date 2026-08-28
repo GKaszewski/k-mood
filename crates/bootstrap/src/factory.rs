@@ -48,12 +48,17 @@ pub async fn build(config: AppConfig) -> Result<Context, Box<dyn std::error::Err
     let weather_store = Arc::new(sqlite::repositories::SqliteWeatherDimensionRepository::new(
         pool.clone(),
     ));
+    let activity_store =
+        Arc::new(sqlite::repositories::SqliteRelationDimensionRepository::activities(pool.clone()));
+    let media_ownership = Arc::new(sqlite::repositories::SqliteMediaOwnershipRepository::new(
+        pool.clone(),
+    ));
 
     let dimensions: Vec<Arc<dyn domain::ports::EntryDimensionPort>> = vec![
         Arc::new(sqlite::repositories::SqliteContentDimensionRepository::new(
             pool.clone(),
         )),
-        Arc::new(sqlite::repositories::SqliteRelationDimensionRepository::activities(pool.clone())),
+        activity_store.clone(),
         Arc::new(sqlite::repositories::SqliteRelationDimensionRepository::photos(pool.clone())),
         Arc::new(
             sqlite::repositories::SqliteRelationDimensionRepository::voice_memos(pool.clone()),
@@ -178,10 +183,12 @@ pub async fn build(config: AppConfig) -> Result<Context, Box<dyn std::error::Err
         entry_query,
         dimensions,
         weather_store: weather_store.clone(),
+        activity_store: activity_store.clone(),
         provider_connection_command,
         provider_connection_query,
         credential_cipher,
         now_playing,
+        weather_enabled: weather_lookup.is_some(),
         recording_lookup: recording_lookup.clone(),
         activity_command,
         activity_query,
@@ -207,6 +214,8 @@ pub async fn build(config: AppConfig) -> Result<Context, Box<dyn std::error::Err
         password_hasher: Arc::new(password_hasher),
         event_publisher: Arc::new(event_publisher),
         media_storage: Arc::new(media_storage),
+        media_ownership,
+        job_view: job_queue.clone(),
         backup_writer: Arc::new(exporter::ZipBackupWriter),
         backup_reader: Arc::new(importer::KmoodBackupAdapter),
         extract_writer: Arc::new(exporter::MarkdownExtractWriter),

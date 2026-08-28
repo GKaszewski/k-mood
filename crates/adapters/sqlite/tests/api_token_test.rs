@@ -1,6 +1,6 @@
 use sqlx::sqlite::SqlitePoolOptions;
 
-use domain::api_token::{ApiToken, TokenDigest};
+use domain::api_token::{ApiToken, TokenDigest, TokenScope, TokenScopes};
 use domain::ports::{ApiTokenCommandPort, ApiTokenQueryPort, CascadeDeletePort, UserCommandPort};
 use domain::provider::ProviderName;
 use domain::testing::test_user;
@@ -33,6 +33,7 @@ fn a_token(owner: &UserId, name: &str, digest: &str) -> ApiToken {
         owner.clone(),
         ProviderName::new(name).unwrap(),
         TokenDigest::from_persistence(digest.into()),
+        TokenScopes::new([TokenScope::WriteMetrics]).unwrap(),
     )
 }
 
@@ -152,7 +153,7 @@ async fn a_row_with_a_scope_this_build_does_not_know_authenticates_nothing() {
     let (pool, user) = a_pool_with_a_user().await;
 
     sqlx::query(
-        "INSERT INTO api_tokens (id, user_id, name, digest, scope, created_at, last_used_at)
+        "INSERT INTO api_tokens (id, user_id, name, digest, scopes, created_at, last_used_at)
          VALUES (?, ?, ?, ?, ?, ?, NULL)",
     )
     .bind(uuid::Uuid::new_v4().to_string())

@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 pub struct ApiTokenResponse {
     pub id: String,
     pub name: String,
-    pub scope: String,
+    pub scopes: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
 }

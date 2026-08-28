@@ -22,13 +22,14 @@ impl SqliteReminderCommandRepository {
 impl domain::ports::ReminderCommandPort for SqliteReminderCommandRepository {
     async fn save(&self, reminder: &Reminder) -> Result<(), DomainError> {
         sqlx::query(
-            "INSERT INTO reminders (id, user_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, enabled, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO reminders (id, user_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, enabled, created_at, last_sent_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                 monday = excluded.monday, tuesday = excluded.tuesday,
                 wednesday = excluded.wednesday, thursday = excluded.thursday,
                 friday = excluded.friday, saturday = excluded.saturday,
-                sunday = excluded.sunday, enabled = excluded.enabled"
+                sunday = excluded.sunday, enabled = excluded.enabled,
+                last_sent_at = excluded.last_sent_at"
         )
         .bind(reminder.id().value().to_string())
         .bind(reminder.user_id().value().to_string())
@@ -41,6 +42,7 @@ impl domain::ports::ReminderCommandPort for SqliteReminderCommandRepository {
         .bind(reminder.schedule().time_for(Weekday::Sun).map(format_time))
         .bind(reminder.is_enabled())
         .bind(reminder.created_at().to_rfc3339())
+        .bind(reminder.last_sent_at().map(|sent| sent.to_rfc3339()))
         .execute(&self.pool).await.map_err(db_err)?;
         Ok(())
     }

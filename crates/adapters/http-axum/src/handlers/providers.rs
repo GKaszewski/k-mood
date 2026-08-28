@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 
 use api_types::dimension::DimensionPayload;
 use api_types::requests::ConnectProviderRequest;
-use api_types::responses::ProviderConnectionResponse;
+use api_types::responses::{ErrorResponse, ProviderConnectionResponse};
 use application::provider::commands::ConnectProviderCommand;
 use application::provider::use_cases::{
     connect_provider, disconnect_provider, get_now_playing, list_connections,
@@ -14,7 +14,7 @@ use domain::errors::DomainError;
 use domain::provider::ProviderName;
 
 use crate::errors::ApiError;
-use crate::extractors::AuthenticatedUser;
+use crate::extractors::{Body, JournalReader, ProfileReader, SessionUser};
 use crate::state::AppState;
 
 fn cipher(
@@ -30,11 +30,15 @@ fn cipher(
 }
 
 #[utoipa::path(get, path = "/api/v1/providers", tag = "providers", security(("bearer" = [])),
-    responses((status = 200, body = Vec<ProviderConnectionResponse>))
+    responses((status = 200, body = Vec<ProviderConnectionResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_list(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    ProfileReader(user_id): ProfileReader,
 ) -> Result<Json<Vec<ProviderConnectionResponse>>, ApiError> {
     let deps = list_connections::Deps {
         query: state.provider_connection_query,
@@ -47,13 +51,17 @@ pub async fn handle_list(
 #[utoipa::path(put, path = "/api/v1/providers/{provider}", tag = "providers", security(("bearer" = [])),
     params(("provider" = String, Path, description = "Provider name")),
     request_body = ConnectProviderRequest,
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_connect(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
     Path(provider): Path<String>,
-    Json(body): Json<ConnectProviderRequest>,
+    Body(body): Body<ConnectProviderRequest>,
 ) -> Result<StatusCode, ApiError> {
     let cipher = cipher(&state)?;
     let provider = ProviderName::new(provider)?;
@@ -81,11 +89,15 @@ pub async fn handle_connect(
 
 #[utoipa::path(delete, path = "/api/v1/providers/{provider}", tag = "providers", security(("bearer" = [])),
     params(("provider" = String, Path, description = "Provider name")),
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_disconnect(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
     Path(provider): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let provider = ProviderName::new(provider)?;
@@ -100,11 +112,15 @@ pub async fn handle_disconnect(
 }
 
 #[utoipa::path(get, path = "/api/v1/providers/now-playing", tag = "providers", security(("bearer" = [])),
-    responses((status = 200, body = Option<DimensionPayload>))
+    responses((status = 200, body = Option<DimensionPayload>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_now_playing(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalReader(user_id): JournalReader,
 ) -> Result<Json<Option<DimensionPayload>>, ApiError> {
     let cipher = cipher(&state)?;
 

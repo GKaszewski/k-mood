@@ -1,3 +1,4 @@
+use domain::api_token::TokenScopes;
 use domain::provider::ProviderName;
 use domain::user::UserId;
 
@@ -5,4 +6,5 @@ use domain::user::UserId;
 pub struct MintApiTokenCommand {
     pub user_id: UserId,
     pub name: ProviderName,
+    pub scopes: TokenScopes,
 }

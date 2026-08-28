@@ -9,20 +9,14 @@ import {
 } from "date-fns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { getMood } from "@/lib/mood"
+import { getMood, nearestMood } from "@/lib/mood"
+import { rowOfWeek, weekStartsOn } from "@/lib/week"
+import { formatDate } from "@/lib/day"
 import type { CalendarDayResponse } from "@/api/schema"
 
 interface MoodHeatmapProps {
   year: number
   days: CalendarDayResponse[]
-}
-
-const MOOD_BG: Record<number, string> = {
-  1: "bg-red-500",
-  2: "bg-orange-400",
-  3: "bg-yellow-400",
-  4: "bg-lime-400",
-  5: "bg-green-500",
 }
 
 const MONTH_LABELS = [
@@ -52,7 +46,7 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
   }
 
   const allDays = eachDayOfInterval({ start: yearStart, end: yearEnd })
-  const weekStart = startOfWeek(yearStart)
+  const weekStart = startOfWeek(yearStart, { weekStartsOn: weekStartsOn() })
   const totalWeeks = differenceInWeeks(yearEnd, weekStart) + 1
 
   const grid: (Date | null)[][] = Array.from({ length: 7 }, () =>
@@ -61,7 +55,7 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
 
   for (const day of allDays) {
     const weekIndex = differenceInWeeks(day, weekStart)
-    const dayIndex = getDay(day)
+    const dayIndex = rowOfWeek(getDay(day))
     grid[dayIndex][weekIndex] = day
   }
 
@@ -71,9 +65,10 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
         <CardTitle className="text-sm">Mood heatmap — {year}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <div className="flex min-w-[640px] gap-0.5">
+        <p className="sr-only">{summarise(year, moodMap)}</p>
+        <div aria-hidden="true" className="flex min-w-[640px] gap-0.5">
           <div className="flex flex-col gap-0.5 pr-1 text-[9px] text-muted-foreground">
-            {["", "Mon", "", "Wed", "", "Fri", ""].map((label, i) => (
+            {rowLabels().map((label, i) => (
               <div key={i} className="h-[11px] leading-[11px]">
                 {label}
               </div>
@@ -105,7 +100,7 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
                     return <div key={weekIdx} className="h-[11px] w-[11px]" />
                   }
 
-                  const dateStr = format(day, "yyyy-MM-dd")
+                  const dateStr = formatDate(day)
                   const mood = moodMap.get(dateStr)
 
                   return (
@@ -113,7 +108,7 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
                       key={weekIdx}
                       className={cn(
                         "h-[11px] w-[11px] rounded-[2px]",
-                        mood ? MOOD_BG[mood] : "bg-muted/30"
+                        mood ? getMood(mood).background : "bg-muted/30"
                       )}
                       title={
                         mood
@@ -134,7 +129,10 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
           {[1, 2, 3, 4, 5].map((m) => (
             <div
               key={m}
-              className={cn("h-[11px] w-[11px] rounded-[2px]", MOOD_BG[m])}
+              className={cn(
+                "h-[11px] w-[11px] rounded-[2px]",
+                getMood(m).background
+              )}
               title={getMood(m).label}
             />
           ))}
@@ -143,4 +141,30 @@ export function MoodHeatmap({ year, days }: MoodHeatmapProps) {
       </CardContent>
     </Card>
   )
+}
+
+/**
+ * The grid is 365 coloured squares — as tab stops it would be unusable, and
+ * read out one by one it would be meaningless. This says the same thing in a
+ * sentence; the calendar is where a screen reader goes for a given day.
+ */
+function summarise(year: number, moods: Map<string, number>): string {
+  const logged = moods.size
+
+  if (logged === 0) return `Mood heatmap for ${year}. Nothing logged.`
+
+  const total = Array.from(moods.values()).reduce((sum, mood) => sum + mood, 0)
+  const average = nearestMood(total / logged)
+
+  return `Mood heatmap for ${year}. ${logged} ${
+    logged === 1 ? "day" : "days"
+  } logged, mostly ${average.label.toLowerCase()}.`
+}
+
+/** Every other row is named, starting from whichever day the week starts on. */
+function rowLabels(): string[] {
+  const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const start = weekStartsOn()
+
+  return short.map((_, row) => (row % 2 === 1 ? short[(row + start) % 7] : ""))
 }

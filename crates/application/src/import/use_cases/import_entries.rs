@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::FixedOffset;
@@ -14,6 +14,7 @@ use domain::ports::{
 use domain::user::Timezone;
 
 use crate::errors::ApplicationError;
+use crate::import::already_here::AlreadyHere;
 
 use super::super::commands::ImportCommand;
 
@@ -42,14 +43,8 @@ pub async fn execute(cmd: ImportCommand, deps: &Deps) -> Result<ImportResult, Ap
 
     let timezone = crate::day::timezone_for(&cmd.user_id, &deps.users).await?;
 
-    let existing_entries = deps
-        .entry_query
-        .find_by_user(&cmd.user_id, None, None)
-        .await?;
-    let existing_keys: HashSet<(String, u8)> = existing_entries
-        .iter()
-        .map(|e| (e.logged_at().to_rfc3339(), e.mood().value()))
-        .collect();
+    let existing_entries = deps.entry_query.find_all_by_user(&cmd.user_id).await?;
+    let mut already_here = AlreadyHere::holding(&existing_entries);
 
     let existing_activities = deps.activity_query.find_by_user(&cmd.user_id).await?;
     let mut activity_cache: HashMap<String, ActivityId> = existing_activities
@@ -74,7 +69,7 @@ pub async fn execute(cmd: ImportCommand, deps: &Deps) -> Result<ImportResult, Ap
             &cmd.user_id,
             &mut activity_cache,
             &category_map,
-            &existing_keys,
+            &mut already_here,
             &timezone,
             deps,
         )
@@ -118,17 +113,17 @@ async fn build_entry(
     user_id: &domain::user::UserId,
     activity_cache: &mut HashMap<String, ActivityId>,
     category_map: &HashMap<String, String>,
-    existing_keys: &HashSet<(String, u8)>,
+    already_here: &mut AlreadyHere,
     timezone: &Timezone,
     deps: &Deps,
 ) -> Result<Option<ComposedEntry>, ApplicationError> {
     let mood = Mood::try_from(row.mood)?;
     let logged_at = the_users_own_wall_clock(&row.date, &row.time, timezone)?;
 
-    let key = (logged_at.to_rfc3339(), mood.value());
-    if existing_keys.contains(&key) {
+    if already_here.holds(&logged_at, mood) {
         return Ok(None);
     }
+    already_here.remember(&logged_at, mood);
 
     let mut activity_ids = Vec::new();
     for activity_name in &row.activities {

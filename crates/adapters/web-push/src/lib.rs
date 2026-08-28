@@ -138,7 +138,7 @@ impl WebPushSender {
     async fn forget(&self, sub: &PushSubscription) {
         if let Err(e) = self
             .subscription_command
-            .delete_by_endpoint(sub.endpoint())
+            .delete_by_endpoint(sub.user_id(), sub.endpoint())
             .await
         {
             tracing::warn!(endpoint = sub.endpoint(), error = %e, "failed to drop push subscription");

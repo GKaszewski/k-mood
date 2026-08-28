@@ -12,7 +12,11 @@ pub struct Deps {
 
 #[tracing::instrument(skip(deps))]
 pub async fn execute(cmd: UnsubscribePushCommand, deps: &Deps) -> Result<(), ApplicationError> {
-    deps.push_command.delete_by_endpoint(&cmd.endpoint).await?;
-    tracing::info!(endpoint = cmd.endpoint, "push subscription removed");
+    deps.push_command
+        .delete_by_endpoint(&cmd.user_id, &cmd.endpoint)
+        .await?;
+
+    tracing::info!(user_id = %cmd.user_id, endpoint = cmd.endpoint, "push subscription removed");
+
     Ok(())
 }

@@ -35,14 +35,14 @@ impl domain::ports::ApiTokenCommandPort for SqliteApiTokenCommandRepository {
         }
 
         sqlx::query(
-            "INSERT INTO api_tokens (id, user_id, name, digest, scope, created_at, last_used_at)
+            "INSERT INTO api_tokens (id, user_id, name, digest, scopes, created_at, last_used_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(token.id().value().to_string())
         .bind(token.user_id().value().to_string())
         .bind(token.name().value())
         .bind(token.digest().value())
-        .bind(token.scope().name())
+        .bind(token.scopes().to_persistence())
         .bind(token.created_at().to_rfc3339())
         .bind(token.last_used_at().map(|used| used.to_rfc3339()))
         .execute(&self.pool)

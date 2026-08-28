@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use domain::errors::DomainError;
-use domain::ports::{PasswordHasherPort, UserCommandPort, UserQueryPort};
+use domain::ports::{
+    PasswordHasherPort, RefreshSessionCommandPort, UserCommandPort, UserQueryPort,
+};
 
 use crate::errors::ApplicationError;
 
@@ -11,6 +13,7 @@ pub struct Deps {
     pub user_command: Arc<dyn UserCommandPort>,
     pub user_query: Arc<dyn UserQueryPort>,
     pub password_hasher: Arc<dyn PasswordHasherPort>,
+    pub refresh_sessions: Arc<dyn RefreshSessionCommandPort>,
 }
 
 #[tracing::instrument(skip_all, fields(user_id = %cmd.user_id))]
@@ -33,6 +36,9 @@ pub async fn execute(cmd: ChangePasswordCommand, deps: &Deps) -> Result<(), Appl
     user.update_password(new_hash);
 
     deps.user_command.save(&user).await?;
+    deps.refresh_sessions.revoke_all_for_user(user.id()).await?;
+
+    tracing::info!(user_id = %user.id(), "password changed and every session revoked");
 
     Ok(())
 }

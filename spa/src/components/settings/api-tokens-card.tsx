@@ -1,19 +1,60 @@
 import { useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { Trash2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/toast"
 import {
   useApiTokens,
   useMintApiToken,
   useRevokeApiToken,
 } from "@/hooks/use-api-tokens"
-import type { ApiTokenResponse } from "@/api/schema"
+import type { ApiTokenResponse, TokenScope } from "@/api/schema"
 
 const NAME_RULE = /^[a-z0-9-]+$/
+
+const GRANTS: Array<{
+  scope: TokenScope
+  title: string
+  describes: string
+}> = [
+  {
+    scope: "readJournal",
+    title: "Read the journal",
+    describes:
+      "Entries, activities, the calendar, statistics, correlations, cycle records and daily metrics.",
+  },
+  {
+    scope: "writeJournal",
+    title: "Write to the journal",
+    describes:
+      "Create, change and delete entries, activities, cycle records, reminders and media.",
+  },
+  {
+    scope: "writeMetrics",
+    title: "Write daily metrics",
+    describes:
+      "For an importer. Its writes are attributed to the token's own name.",
+  },
+  {
+    scope: "readProfile",
+    title: "Read the profile",
+    describes: "The account's name, timezone, preferences and connections.",
+  },
+]
 
 export function ApiTokensCard() {
   const { data: existing } = useApiTokens()
@@ -21,81 +62,114 @@ export function ApiTokensCard() {
   const revoke = useRevokeApiToken()
 
   const [name, setName] = useState("")
+  const [granted, setGranted] = useState<TokenScope[]>(["writeMetrics"])
   const [justMinted, setJustMinted] = useState<string | null>(null)
 
   const normalised = name.trim().toLowerCase()
-  const canMint = normalised.length > 0 && NAME_RULE.test(normalised)
+  const namedWell = normalised.length > 0 && NAME_RULE.test(normalised)
+  const canMint = namedWell && granted.length > 0
+
+  const toggle = (scope: TokenScope, wanted: boolean) =>
+    setGranted((held) =>
+      wanted ? [...held, scope] : held.filter((one) => one !== scope)
+    )
 
   const submit = () => {
-    mint.mutate(normalised, {
-      onSuccess: (minted) => {
-        setJustMinted(minted.secret)
-        setName("")
-      },
-      onError: (error) =>
-        toast.add({
-          title: error instanceof Error ? error.message : "Could not mint",
-          type: "error",
-        }),
-    })
+    mint.mutate(
+      { name: normalised, scopes: granted },
+      {
+        onSuccess: (minted) => {
+          setJustMinted(minted.secret)
+          setName("")
+          setGranted(["writeMetrics"])
+        },
+        onError: (error) =>
+          toast.add({
+            title: error instanceof Error ? error.message : "Could not mint",
+            type: "error",
+          }),
+      }
+    )
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">Importer tokens</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-xs text-muted-foreground">
-          For automations that send daily metrics — a Shortcut, Tasker, a cron
-          script. A token can only write metrics: it cannot read your entries or
-          touch your account. Tokens do not expire, so revoke any you stop
-          using.
-        </p>
-
+    <CollapsibleCard
+      title="Access tokens"
+      description="For automations and other clients — a widget, a Shortcut, a cron script."
+      summary={
+        existing?.length ? (
+          <Badge variant="secondary">{existing.length}</Badge>
+        ) : undefined
+      }
+    >
+      <FieldGroup>
         {justMinted && (
-          <div className="flex flex-col gap-1.5 rounded-md border border-dashed p-3">
-            <Label className="text-xs">
-              Copy this now — it is not shown again
-            </Label>
-            <code className="text-xs break-all">{justMinted}</code>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setJustMinted(null)}
-            >
-              Done
-            </Button>
-          </div>
+          <Alert>
+            <AlertTitle>Copy this now — it is not shown again</AlertTitle>
+            <AlertDescription>
+              <code className="break-all">{justMinted}</code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setJustMinted(null)}
+              >
+                Done
+              </Button>
+            </AlertDescription>
+          </Alert>
         )}
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">
-            Name — becomes the source recorded on its data
-          </Label>
-          <div className="flex gap-2">
-            <Input
-              placeholder="iphone-shortcuts"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <Button
-              size="sm"
-              disabled={!canMint || mint.isPending}
-              onClick={submit}
-            >
-              {mint.isPending ? "Minting…" : "Mint"}
-            </Button>
-          </div>
-          {normalised.length > 0 && !canMint && (
-            <span className="text-xs text-destructive">
-              Lowercase letters, digits and hyphens only.
-            </span>
+        <Field data-invalid={normalised.length > 0 && !namedWell}>
+          <FieldLabel htmlFor="token-name">Name</FieldLabel>
+          <Input
+            id="token-name"
+            placeholder="plasma-widget"
+            value={name}
+            aria-invalid={normalised.length > 0 && !namedWell}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <FieldDescription>
+            Becomes the source recorded on any metrics it writes. Lowercase
+            letters, digits and hyphens.
+          </FieldDescription>
+        </Field>
+
+        <FieldSet>
+          <FieldLegend variant="label">What it may do</FieldLegend>
+          <FieldGroup className="gap-3">
+            {GRANTS.map((grant) => (
+              <Field key={grant.scope} orientation="horizontal">
+                <Checkbox
+                  id={`scope-${grant.scope}`}
+                  checked={granted.includes(grant.scope)}
+                  onCheckedChange={(wanted) =>
+                    toggle(grant.scope, wanted === true)
+                  }
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor={`scope-${grant.scope}`}>
+                    {grant.title}
+                  </FieldLabel>
+                  <FieldDescription>{grant.describes}</FieldDescription>
+                </FieldContent>
+              </Field>
+            ))}
+          </FieldGroup>
+        </FieldSet>
+
+        <Field orientation="horizontal">
+          <Button disabled={!canMint || mint.isPending} onClick={submit}>
+            {mint.isPending ? "Minting…" : "Mint token"}
+          </Button>
+          {granted.length === 0 && (
+            <FieldDescription>
+              Tick at least one thing for it to do.
+            </FieldDescription>
           )}
-        </div>
+        </Field>
 
         {existing?.length ? (
-          <div className="flex flex-col gap-2">
+          <FieldGroup className="gap-3">
             {existing.map((token) => (
               <TokenRow
                 key={token.id}
@@ -103,12 +177,12 @@ export function ApiTokensCard() {
                 onRevoke={() => revoke.mutate(token.id)}
               />
             ))}
-          </div>
+          </FieldGroup>
         ) : (
-          <span className="text-xs text-muted-foreground">No tokens yet.</span>
+          <FieldDescription>No tokens yet.</FieldDescription>
         )}
-      </CardContent>
-    </Card>
+      </FieldGroup>
+    </CollapsibleCard>
   )
 }
 
@@ -124,14 +198,33 @@ function TokenRow({
     : "never used"
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-col">
-        <span className="truncate text-xs font-medium">{token.name}</span>
-        <span className="text-[10px] text-muted-foreground">{lastUsed}</span>
-      </div>
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldTitleRow name={token.name} scopes={token.scopes} />
+        <FieldDescription>{lastUsed}</FieldDescription>
+      </FieldContent>
       <Button variant="ghost" size="icon" onClick={onRevoke}>
-        <Trash2 className="h-4 w-4 text-destructive" />
+        <Trash2 className="text-destructive" />
       </Button>
+    </Field>
+  )
+}
+
+function FieldTitleRow({
+  name,
+  scopes,
+}: {
+  name: string
+  scopes: TokenScope[]
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="truncate text-xs font-medium">{name}</span>
+      {scopes.map((scope) => (
+        <Badge key={scope} variant="secondary">
+          {scope}
+        </Badge>
+      ))}
     </div>
   )
 }

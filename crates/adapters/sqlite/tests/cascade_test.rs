@@ -283,3 +283,170 @@ fn remove(path: &str) {
     let _ = std::fs::remove_file(format!("{path}-wal"));
     let _ = std::fs::remove_file(format!("{path}-shm"));
 }
+
+const EVERY_TABLE_A_USER_FILLS: [&str; 7] = [
+    "mood_entries",
+    "activities",
+    "reminders",
+    "daily_metrics",
+    "cycle_starts",
+    "metric_rejections",
+    "media_owners",
+];
+
+async fn fill_every_table_for(pool: &SqlitePool, user: &User) {
+    let entry = MoodEntry::new(
+        user.id().clone(),
+        Mood::Good,
+        chrono::DateTime::parse_from_rfc3339("2026-08-20T12:00:00+02:00").unwrap(),
+    );
+    SqliteEntryCommandRepository::new(pool.clone())
+        .save(&entry)
+        .await
+        .unwrap();
+
+    domain::ports::ActivityCommandPort::save(
+        &sqlite::repositories::SqliteActivityCommandRepository::new(pool.clone()),
+        &domain::testing::test_activity(user.id().clone(), "gaming"),
+    )
+    .await
+    .unwrap();
+
+    domain::ports::ReminderCommandPort::save(
+        &sqlite::repositories::SqliteReminderCommandRepository::new(pool.clone()),
+        &domain::testing::test_reminder(user.id().clone()),
+    )
+    .await
+    .unwrap();
+
+    domain::ports::DailyMetricCommandPort::save(
+        &sqlite::repositories::SqliteDailyMetricCommandRepository::new(pool.clone()),
+        &[domain::metric::DailyMetric::new(
+            user.id().clone(),
+            a_date("2026-08-20"),
+            domain::metric::MetricValue::Steps(domain::metric::Steps::new(8_412).unwrap()),
+            domain::metric::Source::Manual,
+        )],
+    )
+    .await
+    .unwrap();
+
+    domain::ports::CycleStartCommandPort::record(
+        &sqlite::repositories::SqliteCycleStartRepository::new(pool.clone()),
+        user.id(),
+        &a_date("2026-08-01"),
+    )
+    .await
+    .unwrap();
+
+    domain::ports::RejectionCommandPort::record(
+        &sqlite::repositories::SqliteRejectionRepository::new(pool.clone(), 100),
+        &[domain::rejection::RejectedMetric::new(
+            user.id().clone(),
+            domain::rejection::RejectionOrigin::Import,
+            domain::rejection::RejectionDetail::new(
+                None,
+                Some(a_date("2026-08-19")),
+                "steps",
+                Some(-1),
+            ),
+            String::from("steps cannot be negative"),
+        )],
+    )
+    .await
+    .unwrap();
+
+    domain::ports::MediaOwnershipPort::remember(
+        &sqlite::repositories::SqliteMediaOwnershipRepository::new(pool.clone()),
+        user.id(),
+        (&domain::attachment::PhotoId::generate()).into(),
+    )
+    .await
+    .unwrap();
+}
+
+fn a_date(day: &str) -> domain::entry::Date {
+    domain::entry::Date::from_persistence(day.parse().unwrap())
+}
+
+#[tokio::test]
+async fn clearing_a_users_data_empties_every_table_they_fill() {
+    let path = a_file().await;
+    let pool = sqlite::create_pool(&format!("sqlite://{path}"))
+        .await
+        .unwrap();
+    sqlite::run_migrations(&pool).await.unwrap();
+
+    let user = test_user("alice");
+    SqliteUserCommandRepository::new(pool.clone())
+        .save(&user)
+        .await
+        .unwrap();
+    fill_every_table_for(&pool, &user).await;
+
+    for table in EVERY_TABLE_A_USER_FILLS {
+        assert_eq!(rows_in(&pool, table).await, 1, "{table} should be seeded");
+    }
+
+    domain::ports::CascadeDeletePort::delete_all_user_data(
+        &sqlite::repositories::SqliteCascadeDeleteRepository::new(pool.clone()),
+        user.id(),
+    )
+    .await
+    .unwrap();
+
+    for table in EVERY_TABLE_A_USER_FILLS {
+        assert_eq!(
+            rows_in(&pool, table).await,
+            0,
+            "{table} still holds data the user asked to be cleared"
+        );
+    }
+
+    let users: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(users.0, 1, "clearing data is not deleting the account");
+
+    remove(&path);
+}
+
+#[tokio::test]
+async fn deleting_an_account_empties_every_table_they_fill() {
+    let path = a_file().await;
+    let pool = sqlite::create_pool(&format!("sqlite://{path}"))
+        .await
+        .unwrap();
+    sqlite::run_migrations(&pool).await.unwrap();
+
+    let user = test_user("alice");
+    SqliteUserCommandRepository::new(pool.clone())
+        .save(&user)
+        .await
+        .unwrap();
+    fill_every_table_for(&pool, &user).await;
+
+    domain::ports::CascadeDeletePort::delete_user_account(
+        &sqlite::repositories::SqliteCascadeDeleteRepository::new(pool.clone()),
+        user.id(),
+    )
+    .await
+    .unwrap();
+
+    for table in EVERY_TABLE_A_USER_FILLS {
+        assert_eq!(
+            rows_in(&pool, table).await,
+            0,
+            "{table} outlived the account it belonged to"
+        );
+    }
+
+    let users: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(users.0, 0);
+
+    remove(&path);
+}

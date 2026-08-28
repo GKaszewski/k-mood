@@ -12,5 +12,6 @@ bootstrap.workspace = true
 domain.workspace = true
 application.workspace = true
 config.workspace = true
+chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true

@@ -1,3 +1,4 @@
+use crate::attachment::ContentType;
 use crate::errors::DomainError;
 
 pub struct RestorableEntry {
@@ -32,8 +33,14 @@ pub struct RestorableContents {
     pub activities: Vec<RestorableActivity>,
     pub reminders: Vec<RestorableReminder>,
     pub tracks_cycle: bool,
-    pub photos: Vec<(String, Vec<u8>)>,
-    pub voice_memos: Vec<(String, Vec<u8>)>,
+    pub photos: Vec<RestorableMedia>,
+    pub voice_memos: Vec<RestorableMedia>,
+}
+
+pub struct RestorableMedia {
+    pub id: String,
+    pub data: Vec<u8>,
+    pub content_type: Option<ContentType>,
 }
 
 #[async_trait::async_trait]

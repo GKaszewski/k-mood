@@ -49,45 +49,54 @@ impl crate::ports::MediaStoragePort for InMemoryStore {
     }
 }
 
+impl InMemoryStore {
+    fn forget_what_the_user_logged(&self, user_id: &UserId) {
+        self.entries
+            .write()
+            .unwrap()
+            .retain(|_, entry| entry.user_id() != user_id);
+        self.activities
+            .write()
+            .unwrap()
+            .retain(|_, activity| activity.user_id() != user_id);
+        self.reminders
+            .write()
+            .unwrap()
+            .retain(|_, reminder| reminder.user_id() != user_id);
+        self.daily_metrics
+            .write()
+            .unwrap()
+            .retain(|metric| metric.user_id() != user_id);
+        self.cycle_starts
+            .write()
+            .unwrap()
+            .retain(|(held, _)| held != user_id);
+        self.rejections
+            .write()
+            .unwrap()
+            .retain(|rejected| rejected.user_id() != user_id);
+        self.media_owners
+            .write()
+            .unwrap()
+            .retain(|_, owner| owner != user_id);
+    }
+}
+
 #[async_trait::async_trait]
 impl crate::ports::CascadeDeletePort for InMemoryStore {
     async fn delete_all_user_data(&self, user_id: &UserId) -> Result<(), DomainError> {
         self.cascade_to_dimensions(&self.entry_ids_of(user_id));
 
-        self.entries
-            .write()
-            .unwrap()
-            .retain(|_, e| e.user_id() != user_id);
-        self.activities
-            .write()
-            .unwrap()
-            .retain(|_, a| a.user_id() != user_id);
-        self.reminders
-            .write()
-            .unwrap()
-            .retain(|_, r| r.user_id() != user_id);
-        self.daily_metrics
-            .write()
-            .unwrap()
-            .retain(|m| m.user_id() != user_id);
+        self.forget_what_the_user_logged(user_id);
+
         Ok(())
     }
 
     async fn delete_user_account(&self, user_id: &UserId) -> Result<(), DomainError> {
         self.cascade_to_dimensions(&self.entry_ids_of(user_id));
 
-        self.entries
-            .write()
-            .unwrap()
-            .retain(|_, e| e.user_id() != user_id);
-        self.activities
-            .write()
-            .unwrap()
-            .retain(|_, a| a.user_id() != user_id);
-        self.reminders
-            .write()
-            .unwrap()
-            .retain(|_, r| r.user_id() != user_id);
+        self.forget_what_the_user_logged(user_id);
+
         self.refresh_sessions
             .write()
             .unwrap()
@@ -96,11 +105,16 @@ impl crate::ports::CascadeDeletePort for InMemoryStore {
             .write()
             .unwrap()
             .retain(|_, s| s.user_id() != user_id);
-        self.daily_metrics
+        self.provider_connections
             .write()
             .unwrap()
-            .retain(|m| m.user_id() != user_id);
+            .retain(|c| c.user_id() != user_id);
+        self.api_tokens
+            .write()
+            .unwrap()
+            .retain(|t| t.user_id() != user_id);
         self.users.write().unwrap().remove(user_id);
+
         Ok(())
     }
 
@@ -147,10 +161,13 @@ impl InMemoryStore {
 #[async_trait::async_trait]
 impl crate::ports::PushSubscriptionCommandPort for InMemoryStore {
     async fn save(&self, subscription: &PushSubscription) -> Result<(), DomainError> {
-        self.push_subscriptions
-            .write()
-            .unwrap()
-            .insert(subscription.id().clone(), subscription.clone());
+        let mut held = self.push_subscriptions.write().unwrap();
+
+        held.retain(|id, existing| {
+            id == subscription.id() || existing.endpoint() != subscription.endpoint()
+        });
+        held.insert(subscription.id().clone(), subscription.clone());
+
         Ok(())
     }
 
@@ -159,11 +176,15 @@ impl crate::ports::PushSubscriptionCommandPort for InMemoryStore {
         Ok(())
     }
 
-    async fn delete_by_endpoint(&self, endpoint: &str) -> Result<(), DomainError> {
+    async fn delete_by_endpoint(
+        &self,
+        user_id: &UserId,
+        endpoint: &str,
+    ) -> Result<(), DomainError> {
         self.push_subscriptions
             .write()
             .unwrap()
-            .retain(|_, s| s.endpoint() != endpoint);
+            .retain(|_, s| s.user_id() != user_id || s.endpoint() != endpoint);
         Ok(())
     }
 

@@ -172,6 +172,15 @@ impl crate::ports::RecordingBackfillQueryPort for InMemoryStore {
             .collect())
     }
 
+    async fn find_song_without_a_recording(
+        &self,
+        entry_id: &crate::entry::MoodEntryId,
+    ) -> Result<Option<UnidentifiedSong>, DomainError> {
+        let waiting = self.find_songs_without_a_recording(usize::MAX).await?;
+
+        Ok(waiting.into_iter().find(|song| &song.entry_id == entry_id))
+    }
+
     async fn record_identity(
         &self,
         entry_id: &crate::entry::MoodEntryId,
@@ -240,5 +249,16 @@ impl crate::ports::WeatherBacklogQueryPort for InMemoryStore {
                 logged_at: held.2,
             })
             .collect())
+    }
+
+    async fn find_place_without_weather(
+        &self,
+        entry_id: &crate::entry::MoodEntryId,
+    ) -> Result<Option<crate::ports::UnwatchedPlace>, DomainError> {
+        let waiting = self.find_places_without_weather(usize::MAX).await?;
+
+        Ok(waiting
+            .into_iter()
+            .find(|place| &place.entry_id == entry_id))
     }
 }

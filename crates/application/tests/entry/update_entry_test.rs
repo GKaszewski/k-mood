@@ -7,7 +7,8 @@ use domain::entry::Mood;
 use domain::ports::EntryDimensionPort;
 use domain::ports::MoodEntryCommandPort;
 use domain::testing::{
-    InMemoryDimensionStore, InMemoryStore, test_entry, test_logged_at, test_user,
+    InMemoryActivityDimension, InMemoryDimensionStore, InMemoryStore, test_entry, test_logged_at,
+    test_user,
 };
 use domain::user::UserId;
 
@@ -26,6 +27,7 @@ async fn setup() -> (
     store.save(&entry).await.unwrap();
 
     let deps = update_entry::Deps {
+        activities: store.clone(),
         command: store.clone(),
         dimensions: vec![
             Arc::new(InMemoryDimensionStore::new(DimensionKind::Content))
@@ -45,9 +47,9 @@ async fn updates_mood() {
 
     let cmd = UpdateEntryCommand {
         entry_id: entry.id().clone(),
-        mood: Mood::Rad,
+        mood: Some(Mood::Rad),
         logged_at: Some(test_logged_at()),
-        dimensions: vec![],
+        dimensions: Some(vec![]),
     };
 
     let updated = update_entry::execute(cmd, user_id, &deps).await.unwrap();
@@ -60,6 +62,7 @@ async fn updates_mood() {
 async fn updating_nonexistent_entry_fails() {
     let store = Arc::new(InMemoryStore::new());
     let deps = update_entry::Deps {
+        activities: store.clone(),
         command: store.clone(),
         dimensions: vec![
             Arc::new(InMemoryDimensionStore::new(DimensionKind::Content))
@@ -72,9 +75,9 @@ async fn updating_nonexistent_entry_fails() {
 
     let cmd = UpdateEntryCommand {
         entry_id: domain::entry::MoodEntryId::generate(),
-        mood: Mood::Good,
+        mood: Some(Mood::Good),
         logged_at: Some(test_logged_at()),
-        dimensions: vec![],
+        dimensions: Some(vec![]),
     };
 
     let result = update_entry::execute(cmd, UserId::generate(), &deps).await;
@@ -87,9 +90,9 @@ async fn rejects_update_by_different_user() {
 
     let cmd = UpdateEntryCommand {
         entry_id: entry.id().clone(),
-        mood: Mood::Rad,
+        mood: Some(Mood::Rad),
         logged_at: Some(test_logged_at()),
-        dimensions: vec![],
+        dimensions: Some(vec![]),
     };
 
     let other_user = UserId::generate();
@@ -103,9 +106,9 @@ async fn an_update_carrying_no_date_leaves_the_entry_where_it_was() {
 
     let cmd = UpdateEntryCommand {
         entry_id: entry.id().clone(),
-        mood: Mood::Rad,
+        mood: Some(Mood::Rad),
         logged_at: None,
-        dimensions: vec![],
+        dimensions: Some(vec![]),
     };
 
     let updated = update_entry::execute(cmd, user_id, &deps).await.unwrap();
@@ -124,12 +127,131 @@ async fn an_update_carrying_a_date_moves_the_entry_to_it() {
 
     let cmd = UpdateEntryCommand {
         entry_id: entry.id().clone(),
-        mood: Mood::Rad,
+        mood: Some(Mood::Rad),
         logged_at: Some(moved_to),
-        dimensions: vec![],
+        dimensions: Some(vec![]),
     };
 
     let updated = update_entry::execute(cmd, user_id, &deps).await.unwrap();
 
     assert_eq!(updated.logged_at(), &moved_to);
+}
+
+async fn an_entry_already_wearing(
+    user: &domain::user::User,
+    activity: &domain::activity::Activity,
+) -> (
+    Arc<InMemoryStore>,
+    update_entry::Deps,
+    domain::entry::MoodEntry,
+) {
+    let store = Arc::new(InMemoryStore::new());
+    let entry = test_entry(user.id().clone(), Mood::Meh);
+    MoodEntryCommandPort::save(store.as_ref(), &entry)
+        .await
+        .unwrap();
+
+    domain::ports::ActivityCommandPort::save(store.as_ref(), activity)
+        .await
+        .unwrap();
+
+    let tags: Arc<InMemoryActivityDimension> =
+        Arc::new(InMemoryActivityDimension::sharing(store.clone()));
+    tags.save(
+        entry.id(),
+        &[domain::dimension::DimensionValue::activities(vec![
+            activity.id().clone(),
+        ])],
+    )
+    .await
+    .unwrap();
+
+    let deps = update_entry::Deps {
+        activities: store.clone(),
+        command: store.clone(),
+        dimensions: vec![tags as Arc<dyn EntryDimensionPort>],
+        query: store.clone(),
+        media_storage: store.clone(),
+        events: store.clone(),
+    };
+
+    (store, deps, entry)
+}
+
+#[tokio::test]
+async fn an_entry_that_already_wears_an_archived_activity_can_still_be_edited() {
+    let user = test_user("alice");
+    let mut retired = domain::testing::test_activity(user.id().clone(), "fencing");
+    retired.archive().unwrap();
+
+    let (_store, deps, entry) = an_entry_already_wearing(&user, &retired).await;
+
+    let cmd = UpdateEntryCommand {
+        entry_id: entry.id().clone(),
+        mood: Some(Mood::Rad),
+        logged_at: None,
+        dimensions: Some(vec![domain::dimension::DimensionValue::activities(vec![
+            retired.id().clone(),
+        ])]),
+    };
+
+    let updated = update_entry::execute(cmd, entry.user_id().clone(), &deps)
+        .await
+        .expect("archived activities remain on the entries that already wear them");
+
+    assert_eq!(updated.mood(), Mood::Rad);
+}
+
+#[tokio::test]
+async fn an_archived_activity_cannot_be_added_to_an_entry_that_lacks_it() {
+    let user = test_user("alice");
+    let mut retired = domain::testing::test_activity(user.id().clone(), "fencing");
+    retired.archive().unwrap();
+
+    let worn = domain::testing::test_activity(user.id().clone(), "reading");
+    let (store, deps, entry) = an_entry_already_wearing(&user, &worn).await;
+
+    domain::ports::ActivityCommandPort::save(store.as_ref(), &retired)
+        .await
+        .unwrap();
+
+    let cmd = UpdateEntryCommand {
+        entry_id: entry.id().clone(),
+        mood: Some(Mood::Rad),
+        logged_at: None,
+        dimensions: Some(vec![domain::dimension::DimensionValue::activities(vec![
+            worn.id().clone(),
+            retired.id().clone(),
+        ])]),
+    };
+
+    let refused = update_entry::execute(cmd, entry.user_id().clone(), &deps).await;
+
+    assert!(
+        matches!(
+            refused,
+            Err(application::errors::ApplicationError::Validation(_))
+        ),
+        "editing an entry is not a way past the archive, got {refused:?}"
+    );
+}
+
+#[tokio::test]
+async fn an_archived_activity_can_be_taken_off_an_entry() {
+    let user = test_user("alice");
+    let mut retired = domain::testing::test_activity(user.id().clone(), "fencing");
+    retired.archive().unwrap();
+
+    let (_store, deps, entry) = an_entry_already_wearing(&user, &retired).await;
+
+    let cmd = UpdateEntryCommand {
+        entry_id: entry.id().clone(),
+        mood: Some(Mood::Rad),
+        logged_at: None,
+        dimensions: Some(vec![]),
+    };
+
+    update_entry::execute(cmd, entry.user_id().clone(), &deps)
+        .await
+        .expect("dropping a retired tag is always allowed");
 }

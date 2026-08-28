@@ -3,9 +3,11 @@ import { FileAudio, Mic, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AudioPlayer } from "./audio-player"
 import { media } from "@/api/client"
-import { useVoiceRecorder, formatDuration } from "@/hooks/use-voice-recorder"
+import { usePreviewUrls } from "@/hooks/use-preview-urls"
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
+import { formatDuration } from "@/lib/duration"
+import { keyOf, newPendingItem } from "@/lib/media"
 import type { MediaItem } from "@/lib/media"
-import { createPendingItem } from "@/lib/media"
 
 interface VoiceMemoPickerProps {
   items: MediaItem[]
@@ -14,40 +16,42 @@ interface VoiceMemoPickerProps {
 
 export function VoiceMemoPicker({ items, onChange }: VoiceMemoPickerProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const previews = usePreviewUrls(items)
 
-  const addFile = (file: File) => {
-    onChange([...items, createPendingItem(file)])
+  const add = (file: File) => onChange([...items, newPendingItem(file)])
+
+  const { recording, duration, start, stop } = useVoiceRecorder(add)
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) add(file)
+    event.target.value = ""
   }
 
-  const { recording, duration, start, stop } = useVoiceRecorder(addFile)
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    addFile(file)
-    e.target.value = ""
-  }
-
-  const remove = (index: number) => {
-    onChange(items.filter((_, i) => i !== index))
+  const removeAt = (index: number) => {
+    onChange(items.filter((_, position) => position !== index))
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {items.map((item, i) => (
+      {items.map((item, index) => (
         <AudioPlayer
-          key={i}
+          key={keyOf(item)}
           src={
-            item.type === "existing"
+            item.kind === "existing"
               ? media.voiceMemoUrl(item.id)
-              : item.preview
+              : (previews.get(item.localId) ?? "")
           }
-          onRemove={() => remove(i)}
+          label={`Voice memo ${index + 1}`}
+          onRemove={() => removeAt(index)}
         />
       ))}
 
       {recording && (
-        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3"
+        >
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-destructive" />
           <span className="text-sm font-medium">Recording</span>
           <span className="ml-auto font-mono text-sm">
@@ -73,7 +77,7 @@ export function VoiceMemoPicker({ items, onChange }: VoiceMemoPickerProps) {
             className="flex-1"
             onClick={stop}
           >
-            <Square className="mr-2 h-4 w-4" />
+            <Square className="mr-2 h-4 w-4" aria-hidden="true" />
             Stop
           </Button>
         ) : (
@@ -84,7 +88,7 @@ export function VoiceMemoPicker({ items, onChange }: VoiceMemoPickerProps) {
             className="flex-1"
             onClick={start}
           >
-            <Mic className="mr-2 h-4 w-4" />
+            <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
             Record
           </Button>
         )}
@@ -96,7 +100,7 @@ export function VoiceMemoPicker({ items, onChange }: VoiceMemoPickerProps) {
           onClick={() => fileRef.current?.click()}
           disabled={recording}
         >
-          <FileAudio className="mr-2 h-4 w-4" />
+          <FileAudio className="mr-2 h-4 w-4" aria-hidden="true" />
           Upload
         </Button>
       </div>

@@ -68,14 +68,11 @@ async fn a_populated_account() -> World {
         .await
         .unwrap();
 
-    let attached = vec![
-        DimensionValue::Content(Content::new("Long walk by the river").unwrap()),
-        DimensionValue::activities(vec![walking.id().clone()]),
-        DimensionValue::Location(Coordinates::new(52.2297, 21.0122).unwrap()),
-        DimensionValue::Song(
-            Song::new("Teardrop", "Massive Attack", Some("Mezzanine".into()), None).unwrap(),
-        ),
-    ];
+    let attached = [
+        attached_to_the_walk(),
+        vec![DimensionValue::activities(vec![walking.id().clone()])],
+    ]
+    .concat();
     for port in &dimensions {
         port.save(entry.id(), &attached).await.unwrap();
     }
@@ -123,6 +120,16 @@ async fn a_populated_account() -> World {
     }
 }
 
+fn attached_to_the_walk() -> Vec<DimensionValue> {
+    vec![
+        DimensionValue::Content(Content::new("Long walk by the river").unwrap()),
+        DimensionValue::Location(Coordinates::new(52.2297, 21.0122).unwrap()),
+        DimensionValue::Song(
+            Song::new("Teardrop", "Massive Attack", Some("Mezzanine".into()), None).unwrap(),
+        ),
+    ]
+}
+
 fn on(day: &str) -> Date {
     Date::from_persistence(day.parse().unwrap())
 }
@@ -147,6 +154,9 @@ async fn backup_of(world: &World) -> Vec<u8> {
 
 async fn restore_into(world: &World, archive: Vec<u8>) -> RestoreOutcome {
     let deps = restore_backup::Deps {
+        entry_query: world.store.clone(),
+        reminder_query: world.store.clone(),
+        media_ownership: world.store.clone(),
         reader: Arc::new(importer::KmoodBackupAdapter),
         entry_command: world.store.clone(),
         dimensions: world.dimensions.clone(),
@@ -212,10 +222,9 @@ async fn every_dimension_survives_the_round_trip() {
     let restored = an_empty_account().await;
     restore_into(&restored, archive).await;
 
-    let entries =
-        MoodEntryQueryPort::find_by_user(restored.store.as_ref(), restored.user.id(), None, None)
-            .await
-            .unwrap();
+    let entries = MoodEntryQueryPort::find_all_by_user(restored.store.as_ref(), restored.user.id())
+        .await
+        .unwrap();
     let composed = application::entry::composition::EntryComposer::new(restored.dimensions.clone())
         .compose(entries)
         .await
@@ -248,10 +257,9 @@ async fn a_restored_activity_tag_points_at_the_restored_activity() {
     let catalog = ActivityQueryPort::find_by_user(restored.store.as_ref(), restored.user.id())
         .await
         .unwrap();
-    let entries =
-        MoodEntryQueryPort::find_by_user(restored.store.as_ref(), restored.user.id(), None, None)
-            .await
-            .unwrap();
+    let entries = MoodEntryQueryPort::find_all_by_user(restored.store.as_ref(), restored.user.id())
+        .await
+        .unwrap();
     let composed = application::entry::composition::EntryComposer::new(restored.dimensions.clone())
         .compose(entries)
         .await
@@ -305,6 +313,9 @@ async fn an_archive_that_is_not_a_backup_is_refused() {
     let restored = an_empty_account().await;
 
     let deps = restore_backup::Deps {
+        entry_query: restored.store.clone(),
+        reminder_query: restored.store.clone(),
+        media_ownership: restored.store.clone(),
         reader: Arc::new(importer::KmoodBackupAdapter),
         entry_command: restored.store.clone(),
         dimensions: restored.dimensions.clone(),
@@ -329,4 +340,156 @@ async fn an_archive_that_is_not_a_backup_is_refused() {
     .unwrap_err();
 
     assert!(refused.to_string().contains("zip"), "got {refused}");
+}
+
+async fn a_world_holding_a_png() -> (
+    World,
+    Arc<domain::testing::FakeMediaStorage>,
+    domain::attachment::PhotoId,
+) {
+    let world = a_populated_account().await;
+    let media = Arc::new(domain::testing::FakeMediaStorage::holding_nothing());
+
+    let photo_id = domain::attachment::PhotoId::generate();
+    media.put_photo_as(
+        &photo_id,
+        &[0x89, b'P', b'N', b'G'],
+        domain::attachment::ContentType::new("image/png").unwrap(),
+    );
+
+    let entries = MoodEntryQueryPort::find_all_by_user(world.store.as_ref(), world.user.id())
+        .await
+        .unwrap();
+
+    let everything = [
+        attached_to_the_walk(),
+        vec![DimensionValue::Photos(vec![photo_id.clone()])],
+    ]
+    .concat();
+
+    for port in &world.dimensions {
+        port.save(entries[0].id(), &everything).await.unwrap();
+    }
+
+    (world, media, photo_id)
+}
+
+#[tokio::test]
+async fn a_photos_own_type_survives_the_round_trip() {
+    let (world, media, photo_id) = a_world_holding_a_png().await;
+
+    let deps = write_backup::Deps {
+        entries: world.store.clone(),
+        dimensions: world.dimensions.clone(),
+        activities: world.store.clone(),
+        reminders: world.store.clone(),
+        metrics: world.store.clone(),
+        cycles: world.store.clone(),
+        preferences: world.store.clone(),
+        media_storage: media.clone(),
+        writer: Arc::new(exporter::ZipBackupWriter),
+    };
+    let archive = write_backup::execute(world.user.id().clone(), &deps)
+        .await
+        .unwrap();
+
+    let restored = an_empty_account().await;
+    let into = Arc::new(domain::testing::FakeMediaStorage::holding_nothing());
+
+    let deps = restore_backup::Deps {
+        entry_query: restored.store.clone(),
+        reminder_query: restored.store.clone(),
+        media_ownership: restored.store.clone(),
+        reader: Arc::new(importer::KmoodBackupAdapter),
+        entry_command: restored.store.clone(),
+        dimensions: restored.dimensions.clone(),
+        activity_command: restored.store.clone(),
+        activity_query: restored.store.clone(),
+        reminder_command: restored.store.clone(),
+        metrics: restored.store.clone(),
+        cycles: restored.store.clone(),
+        preferences_command: restored.store.clone(),
+        preferences_query: restored.store.clone(),
+        media_storage: into.clone(),
+    };
+
+    let outcome = restore_backup::execute(
+        RestoreBackupCommand {
+            user_id: restored.user.id().clone(),
+            data: archive,
+        },
+        &deps,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome.media, 1, "the photo should have been restored");
+    assert!(
+        outcome.unreadable.is_empty(),
+        "nothing should have been dropped: {:?}",
+        outcome.unreadable
+    );
+
+    let restored_photo = only_photo_of(&restored).await;
+
+    assert_ne!(
+        restored_photo, photo_id,
+        "a restored blob is a new blob with its own id"
+    );
+    assert_eq!(
+        into.type_of_photo(&restored_photo).unwrap().value(),
+        "image/png",
+        "a PNG must not come back labelled a JPEG"
+    );
+}
+
+async fn only_photo_of(world: &World) -> domain::attachment::PhotoId {
+    let entries = MoodEntryQueryPort::find_all_by_user(world.store.as_ref(), world.user.id())
+        .await
+        .unwrap();
+
+    let composed = application::entry::composition::EntryComposer::new(world.dimensions.clone())
+        .compose(entries)
+        .await
+        .unwrap();
+
+    composed
+        .iter()
+        .flat_map(|entry| entry.photos())
+        .next()
+        .expect("the restored entry should carry a photo")
+        .clone()
+}
+
+#[tokio::test]
+async fn restoring_the_same_backup_twice_does_not_double_the_account() {
+    let world = a_populated_account().await;
+    let archive = backup_of(&world).await;
+
+    let restored = an_empty_account().await;
+
+    let first = restore_into(&restored, archive.clone()).await;
+    assert_eq!(first.entries, 1);
+    assert_eq!(first.reminders, 1);
+
+    let again = restore_into(&restored, archive).await;
+
+    assert_eq!(again.entries, 0, "the entry was already here");
+    assert_eq!(again.reminders, 0, "the reminder was already here");
+    assert_eq!(again.activities, 0, "the activity was already here");
+    assert!(again.skipped >= 2, "the duplicates should be reported");
+
+    let entries = MoodEntryQueryPort::find_all_by_user(restored.store.as_ref(), restored.user.id())
+        .await
+        .unwrap();
+    assert_eq!(
+        entries.len(),
+        1,
+        "restoring twice must not duplicate history"
+    );
+
+    let reminders = ReminderQueryPort::find_by_user(restored.store.as_ref(), restored.user.id())
+        .await
+        .unwrap();
+    assert_eq!(reminders.len(), 1);
 }

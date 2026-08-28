@@ -13,9 +13,6 @@ mod get_entry_test;
 #[path = "entry/list_entries_test.rs"]
 mod list_entries_test;
 
-#[path = "entry/filter_test.rs"]
-mod filter_test;
-
 #[path = "entry/mood_stats_test.rs"]
 mod mood_stats_test;
 

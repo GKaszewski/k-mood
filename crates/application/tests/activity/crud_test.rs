@@ -152,6 +152,7 @@ async fn deletes_activity() {
     store.save(&activity).await.unwrap();
 
     let deps = delete_activity::Deps {
+        entries: store.clone(),
         command: store.clone(),
         query: store.clone(),
     };
@@ -193,6 +194,7 @@ async fn delete_rejects_different_user() {
     store.save(&activity).await.unwrap();
 
     let deps = delete_activity::Deps {
+        entries: store.clone(),
         command: store.clone(),
         query: store.clone(),
     };
@@ -217,4 +219,74 @@ async fn archive_rejects_different_user() {
 
     let result = archive_activity::archive(activity.id().clone(), UserId::generate(), &deps).await;
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn an_activity_entries_still_wear_cannot_be_deleted() {
+    let store = store_and_events();
+    let user = test_user("alice");
+    let activity = test_activity(user.id().clone(), "gaming");
+    store.save(&activity).await.unwrap();
+
+    let entry = domain::testing::test_entry(user.id().clone(), domain::entry::Mood::Good);
+    domain::ports::MoodEntryCommandPort::save(store.as_ref(), &entry)
+        .await
+        .unwrap();
+    store.assign_activities(entry.id(), vec![activity.id().clone()]);
+
+    let deps = delete_activity::Deps {
+        entries: store.clone(),
+        command: store.clone(),
+        query: store.clone(),
+    };
+
+    let refused = delete_activity::execute(activity.id().clone(), user.id().clone(), &deps).await;
+
+    assert!(
+        matches!(
+            refused,
+            Err(application::errors::ApplicationError::Validation(_))
+        ),
+        "deleting a tagged activity would rewrite history, got {refused:?}"
+    );
+    assert_eq!(
+        store.activity_count(),
+        1,
+        "the activity must survive so it can be archived instead"
+    );
+}
+
+#[tokio::test]
+async fn an_archived_activity_is_still_listable_so_it_can_be_unarchived() {
+    let store = store_and_events();
+    let user = test_user("alice");
+
+    let kept = test_activity(user.id().clone(), "reading");
+    store.save(&kept).await.unwrap();
+
+    let mut retired = test_activity(user.id().clone(), "fencing");
+    retired.archive().unwrap();
+    store.save(&retired).await.unwrap();
+
+    let deps = list_activities::Deps {
+        query: store.clone(),
+    };
+
+    let offered = list_activities::active_only(user.id().clone(), &deps)
+        .await
+        .unwrap();
+    assert_eq!(offered.len(), 1, "only the active one may be tagged");
+
+    let everything = list_activities::all(user.id().clone(), &deps)
+        .await
+        .unwrap();
+    assert_eq!(
+        everything.len(),
+        2,
+        "archiving must not put an activity beyond reach"
+    );
+    assert!(
+        everything.iter().any(|activity| activity.is_archived()),
+        "the archived one is the point"
+    );
 }

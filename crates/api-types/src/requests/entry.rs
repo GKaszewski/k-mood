@@ -1,33 +1,25 @@
+use crate::dimension::DimensionPayload;
+
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateEntryRequest {
     pub mood: u8,
     pub logged_at: Option<String>,
-    pub dimensions: Option<Vec<crate::dimension::DimensionPayload>>,
+    pub dimensions: Option<Vec<DimensionPayload>>,
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateEntriesRequest {
+    pub entries: Vec<CreateEntryRequest>,
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateEntryRequest {
-    pub mood: u8,
+    pub mood: Option<u8>,
     pub logged_at: Option<String>,
-    pub dimensions: Option<Vec<crate::dimension::DimensionPayload>>,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
-#[serde(rename_all = "camelCase")]
-pub struct ListEntriesParams {
-    pub from: Option<String>,
-    pub to: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
-#[serde(rename_all = "camelCase")]
-pub struct DateRangeParams {
-    pub from: String,
-    pub to: String,
+    pub dimensions: Option<Vec<DimensionPayload>>,
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]

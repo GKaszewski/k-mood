@@ -1,27 +1,21 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getMood } from "@/lib/mood"
-import type { MoodFrequency } from "@/api/schema"
+import type { MoodFrequencyResponse } from "@/api/schema"
 
 interface MoodDistributionProps {
-  frequency: MoodFrequency[]
-}
-
-const COLORS: Record<number, string> = {
-  1: "#ef4444",
-  2: "#f97316",
-  3: "#eab308",
-  4: "#84cc16",
-  5: "#22c55e",
+  frequency: MoodFrequencyResponse[]
 }
 
 export function MoodDistribution({ frequency }: MoodDistributionProps) {
   if (!frequency.length) return null
 
-  const data = frequency.map((f) => ({
-    name: getMood(f.mood).emoji + " " + f.moodLabel,
-    value: f.count,
-    mood: f.mood,
+  const data = frequency.map((entry) => ({
+    label: entry.moodLabel,
+    emoji: getMood(entry.mood).emoji,
+    swatch: getMood(entry.mood).swatch,
+    value: entry.count,
+    mood: entry.mood,
   }))
 
   const total = data.reduce((sum, d) => sum + d.value, 0)
@@ -33,37 +27,41 @@ export function MoodDistribution({ frequency }: MoodDistributionProps) {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4">
-          <ResponsiveContainer width={120} height={120}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="value"
-                cx="50%"
-                cy="50%"
-                innerRadius={30}
-                outerRadius={55}
-                strokeWidth={2}
-              >
-                {data.map((d) => (
-                  <Cell key={d.mood} fill={COLORS[d.mood]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-col gap-1.5">
-            {data.map((d) => (
-              <div key={d.mood} className="flex items-center gap-2 text-sm">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: COLORS[d.mood] }}
-                />
-                <span className="text-foreground">{d.name}</span>
-                <span className="text-foreground/70">
-                  {d.value} ({Math.round((d.value / total) * 100)}%)
-                </span>
-              </div>
-            ))}
+          <div aria-hidden="true">
+            <ResponsiveContainer width={120} height={120}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={30}
+                  outerRadius={55}
+                  strokeWidth={2}
+                >
+                  {data.map((slice) => (
+                    <Cell key={slice.mood} fill={slice.swatch} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
           </div>
+          <ul className="flex list-none flex-col gap-1.5 p-0">
+            {data.map((slice) => (
+              <li key={slice.mood} className="flex items-center gap-2 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: slice.swatch }}
+                />
+                <span aria-hidden="true">{slice.emoji}</span>
+                <span className="text-foreground">{slice.label}</span>
+                <span className="text-foreground/70">
+                  {slice.value} ({Math.round((slice.value / total) * 100)}%)
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       </CardContent>
     </Card>

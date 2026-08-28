@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use domain::entry::Mood;
+use domain::entry::{Date, Mood};
 use domain::ports::{MoodEntryQueryPort, UserQueryPort};
 use domain::services::MoodAnalyzerService;
 
@@ -14,6 +14,8 @@ pub struct MoodStats {
     pub frequency: Vec<(Mood, usize)>,
     pub current_streak: usize,
     pub total_entries: usize,
+    pub first_logged_on: Option<Date>,
+    pub last_logged_on: Option<Date>,
 }
 
 pub struct Deps {
@@ -29,7 +31,7 @@ pub async fn execute(query: MoodStatsQuery, deps: &Deps) -> Result<MoodStats, Ap
                 .find_by_date_range(&query.user_id, &range)
                 .await?
         }
-        None => deps.query.find_by_user(&query.user_id, None, None).await?,
+        None => deps.query.find_all_by_user(&query.user_id).await?,
     };
 
     let timezone = timezone_for(&query.user_id, &deps.users).await?;
@@ -43,5 +45,7 @@ pub async fn execute(query: MoodStatsQuery, deps: &Deps) -> Result<MoodStats, Ap
         frequency: MoodAnalyzerService::mood_frequency(&entries),
         current_streak: MoodAnalyzerService::current_streak(&dates, today_in(&timezone)),
         total_entries: entries.len(),
+        first_logged_on: dates.iter().min().copied(),
+        last_logged_on: dates.iter().max().copied(),
     })
 }

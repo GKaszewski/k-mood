@@ -1,24 +1,15 @@
-import { useQuery } from "@tanstack/react-query"
-import { entries } from "@/api/client"
+import { useMoodStats } from "./use-stats"
 
+/** The first and last day this account ever logged, if it has logged at all. */
 export function useDateBounds() {
-  return useQuery({
-    queryKey: ["entries", "bounds"],
-    queryFn: async () => {
-      const all = await entries.list({ limit: 1, offset: 0 })
-      if (!all.length) return null
-      const newest = new Date(all[0].loggedAt)
+  const { data: stats } = useMoodStats("all")
 
-      const stats = await entries.stats()
-      const total = stats.totalEntries
+  if (!stats?.firstLoggedOn || !stats.lastLoggedOn) return { data: null }
 
-      if (total <= 1) return { oldest: newest, newest }
-
-      const last = await entries.list({ limit: 1, offset: total - 1 })
-      const oldest = last.length ? new Date(last[0].loggedAt) : newest
-
-      return { oldest, newest }
+  return {
+    data: {
+      oldest: new Date(stats.firstLoggedOn),
+      newest: new Date(stats.lastLoggedOn),
     },
-    staleTime: 5 * 60_000,
-  })
+  }
 }

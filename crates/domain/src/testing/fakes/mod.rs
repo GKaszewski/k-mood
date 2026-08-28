@@ -1,3 +1,4 @@
+mod activity_dimension;
 mod api_token_secret;
 mod cipher;
 mod dimension_store;
@@ -13,6 +14,7 @@ mod store_cycle;
 mod store_entry;
 mod store_infra;
 mod store_job;
+mod store_media;
 mod store_metric;
 mod store_provider;
 mod store_rejection;
@@ -20,6 +22,7 @@ mod store_reminder;
 mod store_user;
 mod weather;
 
+pub use activity_dimension::InMemoryActivityDimension;
 pub use api_token_secret::FakeApiTokenSecret;
 pub use cipher::FakeCredentialCipher;
 pub use dimension_store::InMemoryDimensionStore;

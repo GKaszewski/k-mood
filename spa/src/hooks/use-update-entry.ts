@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { entries } from "@/api/client"
 import type { UpdateEntryRequest } from "@/api/schema"
+import { invalidateJournal } from "./use-entries"
 
 export function useUpdateEntry() {
   const queryClient = useQueryClient()
@@ -9,10 +10,6 @@ export function useUpdateEntry() {
     meta: { success: "Entry updated" },
     mutationFn: ({ id, body }: { id: string; body: UpdateEntryRequest }) =>
       entries.update(id, body),
-    onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ["entries"] })
-      queryClient.invalidateQueries({ queryKey: ["entries", id] })
-      queryClient.invalidateQueries({ queryKey: ["stats"] })
-    },
+    onSuccess: () => invalidateJournal(queryClient),
   })
 }

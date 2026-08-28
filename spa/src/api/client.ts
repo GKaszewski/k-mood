@@ -1,9 +1,11 @@
 import axios, { AxiosError } from "axios"
+import type { InternalAxiosRequestConfig } from "axios"
 import type { z } from "zod/v4"
 import {
   ActivityResponse,
-  ApiErrorResponse,
-  AuthTokenResponse,
+  ErrorResponse,
+  RefreshedResponse,
+  SignedInResponse,
   BulkActionResponse,
   CalendarDayResponse,
   EntryResponse,
@@ -20,13 +22,23 @@ import {
   CycleViewResponse,
   PreferencesResponse,
   ApiTokenResponse,
+  EntryPageResponse,
   MintedApiTokenResponse,
+  ServerInfoResponse,
   CorrelationRowResponse,
   DimensionPayload,
 } from "./schema"
+import { serverUrl } from "./server-url"
+import {
+  accessToken,
+  forgetSession,
+  refreshToken as storedRefreshToken,
+  rememberSession,
+} from "./session"
 import type {
   ChangePasswordRequest,
   CreateActivityRequest,
+  CreateEntriesRequest,
   CreateEntryRequest,
   DateSpanParams,
   MetricPayload,
@@ -35,6 +47,7 @@ import type {
   DateRangeParams,
   ListEntriesParams,
   LoginRequest,
+  MintApiTokenRequest,
   RegisterRequest,
   RenameActivityRequest,
   ReplaceActivityRequest,
@@ -45,21 +58,30 @@ import type {
 } from "./schema"
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "",
+  baseURL: serverUrl(),
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken")
+  const token = accessToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+/**
+ * A request that has already been retried once after a refresh. Without this
+ * mark, a token that refreshes cleanly but still fails authorisation would
+ * refresh and retry forever.
+ */
+type RetriableConfig = InternalAxiosRequestConfig & {
+  retriedAfterRefresh?: true
+}
+
 let refreshPromise: Promise<boolean> | null = null
 
 async function tryRefreshToken(): Promise<boolean> {
-  const refreshToken = localStorage.getItem("refreshToken")
+  const refreshToken = storedRefreshToken()
   if (!refreshToken) return false
 
   try {
@@ -67,18 +89,25 @@ async function tryRefreshToken(): Promise<boolean> {
       `${api.defaults.baseURL}/api/v1/auth/refresh`,
       { refreshToken }
     )
-    const parsed = AuthTokenResponse.parse(data)
-    localStorage.setItem("accessToken", parsed.accessToken)
-    localStorage.setItem("refreshToken", parsed.refreshToken)
+    rememberSession(RefreshedResponse.parse(data))
     return true
   } catch {
     return false
   }
 }
 
+function abandonSession(): void {
+  forgetSession()
+  window.location.href = "/login"
+}
+
 api.interceptors.response.use(undefined, async (error: AxiosError) => {
-  const original = error.config
+  const original = error.config as RetriableConfig | undefined
   if (error.response?.status !== 401 || !original) throw error
+  if (original.retriedAfterRefresh) {
+    abandonSession()
+    throw error
+  }
 
   if (!refreshPromise) {
     refreshPromise = tryRefreshToken().finally(() => {
@@ -88,12 +117,11 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
 
   const refreshed = await refreshPromise
   if (!refreshed) {
-    localStorage.removeItem("accessToken")
-    localStorage.removeItem("refreshToken")
-    window.location.href = "/login"
-    return Promise.reject(error)
+    abandonSession()
+    throw error
   }
 
+  original.retriedAfterRefresh = true
   return api(original)
 })
 
@@ -110,7 +138,7 @@ class ApiError extends Error {
 
 function handleError(err: unknown): never {
   if (err instanceof AxiosError && err.response) {
-    const parsed = ApiErrorResponse.safeParse(err.response.data)
+    const parsed = ErrorResponse.safeParse(err.response.data)
     throw new ApiError(
       err.response.status,
       parsed.success ? parsed.data.error.code : "UNKNOWN",
@@ -168,13 +196,13 @@ async function uploadForm<T>(
 
 export const auth = {
   login: (body: LoginRequest) =>
-    request("post", "/api/v1/auth/login", AuthTokenResponse, body),
+    request("post", "/api/v1/auth/login", SignedInResponse, body),
 
   register: (body: RegisterRequest) =>
     request("post", "/api/v1/users/register", UserResponse, body),
 
   refresh: (refreshToken: string) =>
-    request("post", "/api/v1/auth/refresh", AuthTokenResponse, {
+    request("post", "/api/v1/auth/refresh", RefreshedResponse, {
       refreshToken,
     }),
 
@@ -222,11 +250,15 @@ export const cycle = {
 
 // ── API tokens ──────────────────────────────────────────────────
 
+export const server = {
+  info: () => request("get", "/api/v1/server", ServerInfoResponse),
+}
+
 export const tokens = {
   list: () => request("get", "/api/v1/tokens", ApiTokenResponse.array()),
 
-  mint: (name: string) =>
-    request("post", "/api/v1/tokens", MintedApiTokenResponse, { name }),
+  mint: (body: MintApiTokenRequest) =>
+    request("post", "/api/v1/tokens", MintedApiTokenResponse, body),
 
   revoke: (id: string) => requestVoid("delete", `/api/v1/tokens/${id}`),
 }
@@ -267,7 +299,10 @@ export const metrics = {
 
 export const entries = {
   list: (params?: ListEntriesParams) =>
-    request("get", "/api/v1/entries", EntryResponse.array(), undefined, params),
+    request("get", "/api/v1/entries", EntryPageResponse, undefined, params),
+
+  createMany: (body: CreateEntriesRequest) =>
+    request("post", "/api/v1/entries/bulk", EntryResponse.array(), body),
 
   get: (id: string) => request("get", `/api/v1/entries/${id}`, EntryResponse),
 
@@ -312,20 +347,6 @@ export const entries = {
       MoodStatsResponse,
       undefined,
       params
-    ),
-
-  filterByMood: (mood: number) =>
-    request(
-      "get",
-      `/api/v1/entries/filter/mood/${mood}`,
-      EntryResponse.array()
-    ),
-
-  filterByActivity: (activityId: string) =>
-    request(
-      "get",
-      `/api/v1/entries/filter/activity/${activityId}`,
-      EntryResponse.array()
     ),
 }
 

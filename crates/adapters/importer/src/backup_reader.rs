@@ -1,9 +1,15 @@
 use api_types::dimension::DimensionPayload;
 use domain::dimension::DimensionValue;
 use domain::errors::DomainError;
+use std::collections::HashMap;
+
+use domain::attachment::ContentType;
 use domain::ports::{
-    RestorableActivity, RestorableContents, RestorableEntry, RestorableMetric, RestorableReminder,
+    RestorableActivity, RestorableContents, RestorableEntry, RestorableMedia, RestorableMetric,
+    RestorableReminder,
 };
+
+use exporter::{BackedUpMedia, PHOTO_KIND, VOICE_MEMO_KIND};
 
 use super::kmood_backup::KmoodBackupReader;
 
@@ -14,6 +20,7 @@ impl domain::ports::BackupReaderPort for KmoodBackupAdapter {
     async fn read(&self, data: &[u8]) -> Result<RestorableContents, DomainError> {
         let read = KmoodBackupReader::read(data)?;
         let manifest = read.manifest;
+        let types = declared_types(&manifest.media);
 
         Ok(RestorableContents {
             entries: manifest
@@ -63,8 +70,8 @@ impl domain::ports::BackupReaderPort for KmoodBackupAdapter {
                 })
                 .collect(),
             tracks_cycle: manifest.tracks_cycle,
-            photos: read.photos.into_iter().collect(),
-            voice_memos: read.voice_memos.into_iter().collect(),
+            photos: restorable(read.photos, &types, PHOTO_KIND),
+            voice_memos: restorable(read.voice_memos, &types, VOICE_MEMO_KIND),
         })
     }
 }
@@ -78,6 +85,33 @@ fn readable_dimensions(payloads: Vec<DimensionPayload>) -> Vec<DimensionValue> {
                 tracing::warn!(%error, "a backed-up dimension could not be read");
                 None
             }
+        })
+        .collect()
+}
+
+fn declared_types(media: &[BackedUpMedia]) -> HashMap<(String, String), ContentType> {
+    media
+        .iter()
+        .map(|held| {
+            (
+                (held.kind.clone(), held.id.clone()),
+                ContentType::from_persistence(held.content_type.clone()),
+            )
+        })
+        .collect()
+}
+
+fn restorable(
+    blobs: HashMap<String, Vec<u8>>,
+    types: &HashMap<(String, String), ContentType>,
+    kind: &str,
+) -> Vec<RestorableMedia> {
+    blobs
+        .into_iter()
+        .map(|(id, data)| RestorableMedia {
+            content_type: types.get(&(kind.to_string(), id.clone())).cloned(),
+            id,
+            data,
         })
         .collect()
 }

@@ -48,8 +48,13 @@ impl domain::ports::PushSubscriptionCommandPort for SqlitePushSubscriptionComman
         Ok(())
     }
 
-    async fn delete_by_endpoint(&self, endpoint: &str) -> Result<(), DomainError> {
-        sqlx::query("DELETE FROM push_subscriptions WHERE endpoint = ?")
+    async fn delete_by_endpoint(
+        &self,
+        user_id: &UserId,
+        endpoint: &str,
+    ) -> Result<(), DomainError> {
+        sqlx::query("DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?")
+            .bind(user_id.value().to_string())
             .bind(endpoint)
             .execute(&self.pool)
             .await

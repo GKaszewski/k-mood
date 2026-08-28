@@ -4,8 +4,8 @@ use domain::attachment::{PhotoId, VoiceMemoId};
 use domain::dimension::{DimensionKind, DimensionValue};
 use domain::entry::{DateRange, Mood, MoodEntry};
 use domain::ports::{
-    ActivityQueryPort, CascadeDeletePort, EntryDimensionPort, MoodEntryCommandPort,
-    ReminderQueryPort, UserCommandPort,
+    ActivityQueryPort, CascadeDeletePort, EntryDimensionPort, MediaOwnershipPort,
+    MoodEntryCommandPort, ReminderQueryPort, UserCommandPort,
 };
 use domain::testing::{FakeMediaStorage, InMemoryDimensionStore, InMemoryStore, test_user};
 use domain::user::{Timezone, User};
@@ -47,6 +47,13 @@ async fn an_entry_with_media(media: &Arc<FakeMediaStorage>) -> Doomed {
     let memo_id = VoiceMemoId::generate();
     media.put_photo(&photo_id, b"a photograph");
     media.put_voice_memo(&memo_id, b"a recording");
+
+    MediaOwnershipPort::remember(store.as_ref(), user.id(), (&photo_id).into())
+        .await
+        .unwrap();
+    MediaOwnershipPort::remember(store.as_ref(), user.id(), (&memo_id).into())
+        .await
+        .unwrap();
 
     photos
         .save(
@@ -150,10 +157,9 @@ async fn clearing_a_users_data_takes_the_blobs_with_it() {
     let doomed = an_entry_with_media(&media).await;
 
     let deps = clear_data::Deps {
-        entry_query: doomed.store.clone(),
-        dimensions: doomed.dimensions(),
         cascade: doomed.store.clone(),
         media_storage: media.clone(),
+        media_ownership: doomed.store.clone(),
     };
 
     clear_data::execute(doomed.user.id().clone(), &deps)
@@ -173,10 +179,9 @@ async fn deleting_an_account_takes_the_blobs_with_it() {
     let doomed = an_entry_with_media(&media).await;
 
     let deps = delete_user::Deps {
-        entry_query: doomed.store.clone(),
-        dimensions: doomed.dimensions(),
         cascade: doomed.store.clone(),
         media_storage: media.clone(),
+        media_ownership: doomed.store.clone(),
         user_query: doomed.store.clone(),
         events: doomed.store.clone(),
     };

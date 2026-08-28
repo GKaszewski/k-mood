@@ -1,67 +1,54 @@
 import { useState } from "react"
 import { createLazyFileRoute } from "@tanstack/react-router"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { getMoodEmoji } from "@/lib/mood"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MoodTrendChart } from "@/components/stats/mood-trend-chart"
 import { MoodDistribution } from "@/components/stats/mood-distribution"
-import { MoodHeatmap } from "@/components/stats/mood-heatmap"
 import { MoodCorrelations } from "@/components/stats/mood-correlations"
-import { StatCard } from "@/components/stats/stat-card"
-import { useMoodStats, usePeriodEntries } from "@/hooks/use-stats"
-import { useYearCalendar } from "@/hooks/use-year-calendar"
+import { MoodSummary } from "@/components/stats/mood-summary"
+import { HeatmapSection } from "@/components/stats/heatmap-section"
+import { useMoodStats } from "@/hooks/use-stats"
+import { useTrend } from "@/hooks/use-trend"
+import { PERIODS, PERIOD_LABELS } from "@/lib/period"
+import type { Period } from "@/lib/period"
 
 export const Route = createLazyFileRoute("/_auth/stats")({
   component: StatsPage,
 })
 
-type Period = "week" | "month" | "year" | "all"
-
 function StatsPage() {
   const [period, setPeriod] = useState<Period>("month")
-  const [heatmapYear, setHeatmapYear] = useState(new Date().getFullYear())
-  const { data: stats, isLoading: statsLoading } = useMoodStats(period)
-  const { data: trendEntries } = usePeriodEntries(period)
-  const { data: yearDays, isLoading: heatmapLoading } =
-    useYearCalendar(heatmapYear)
+  const { data: stats, isLoading } = useMoodStats(period)
+  const { data: trend } = useTrend(period)
 
   return (
     <div className="flex flex-col gap-4 py-6">
       <h1 className="text-xl font-bold">Statistics</h1>
 
-      <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+      <Tabs
+        value={period}
+        onValueChange={(value) => setPeriod(value as Period)}
+      >
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="week">Week</TabsTrigger>
-          <TabsTrigger value="month">Month</TabsTrigger>
-          <TabsTrigger value="year">Year</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
+          {PERIODS.map((option) => (
+            <TabsTrigger key={option} value={option}>
+              {PERIOD_LABELS[option]}
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
 
-      {statsLoading ? (
+      {isLoading ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-24" />
           <Skeleton className="h-48" />
         </div>
       ) : stats ? (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              label="Average"
-              value={
-                stats.average
-                  ? getMoodEmoji(Math.round(Number(stats.average)))
-                  : "—"
-              }
-            />
-            <StatCard label="Streak" value={`${stats.currentStreak}d`} />
-            <StatCard label="Entries" value={stats.totalEntries} />
-          </div>
+          <MoodSummary stats={stats} />
 
-          {trendEntries?.length ? (
-            <MoodTrendChart entries={trendEntries} period={period} />
+          {trend?.length ? (
+            <MoodTrendChart points={trend} period={period} />
           ) : null}
 
           {stats.frequency.length ? (
@@ -72,30 +59,7 @@ function StatsPage() {
         </>
       ) : null}
 
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setHeatmapYear((y) => y - 1)}
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <span className="text-sm font-medium">{heatmapYear}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setHeatmapYear((y) => y + 1)}
-          disabled={heatmapYear >= new Date().getFullYear()}
-        >
-          <ChevronRight className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {heatmapLoading ? (
-        <Skeleton className="h-32" />
-      ) : yearDays ? (
-        <MoodHeatmap year={heatmapYear} days={yearDays} />
-      ) : null}
+      <HeatmapSection />
     </div>
   )
 }

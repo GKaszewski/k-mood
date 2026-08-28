@@ -6,7 +6,8 @@ use crate::user::UserId;
 pub trait PushSubscriptionCommandPort: Send + Sync {
     async fn save(&self, subscription: &PushSubscription) -> Result<(), DomainError>;
     async fn delete(&self, id: &PushSubscriptionId) -> Result<(), DomainError>;
-    async fn delete_by_endpoint(&self, endpoint: &str) -> Result<(), DomainError>;
+    async fn delete_by_endpoint(&self, user_id: &UserId, endpoint: &str)
+    -> Result<(), DomainError>;
     async fn delete_all_by_user(&self, user_id: &UserId) -> Result<(), DomainError>;
 }
 

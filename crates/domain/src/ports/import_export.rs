@@ -1,4 +1,5 @@
 use crate::activity::Activity;
+use crate::attachment::ContentType;
 use crate::cycle::CycleStartRestore;
 use crate::dimension::ComposedEntry;
 use crate::errors::DomainError;
@@ -9,6 +10,7 @@ use crate::user::UserPreferences;
 pub struct MediaBlob {
     pub id: String,
     pub data: Vec<u8>,
+    pub content_type: ContentType,
 }
 
 pub struct BackupMedia {

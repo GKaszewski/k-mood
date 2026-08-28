@@ -11,11 +11,10 @@ use application::user::use_cases::delete_user;
 
 fn deps(store: &Arc<InMemoryStore>) -> delete_user::Deps {
     delete_user::Deps {
-        dimensions: vec![],
         user_query: store.clone(),
-        entry_query: store.clone(),
         cascade: store.clone(),
         media_storage: store.clone(),
+        media_ownership: store.clone(),
         events: store.clone(),
     }
 }

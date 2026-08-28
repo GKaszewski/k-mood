@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
-use chrono::{Datelike, NaiveTime, Utc};
+use chrono::{Duration, Utc};
 
-use domain::ports::{ReminderQueryPort, ReminderSenderPort, UserQueryPort};
-use domain::reminder::Reminder;
+use domain::ports::{ReminderCommandPort, ReminderQueryPort, ReminderSenderPort, UserQueryPort};
+use domain::reminder::{DueOccurrence, Reminder};
+use domain::user::Timezone;
 
 use crate::errors::ApplicationError;
 
 pub struct Deps {
     pub reminder_query: Arc<dyn ReminderQueryPort>,
+    pub reminder_command: Arc<dyn ReminderCommandPort>,
     pub user_query: Arc<dyn UserQueryPort>,
     pub sender: Arc<dyn ReminderSenderPort>,
+    pub grace: Duration,
 }
 
 #[tracing::instrument(skip(deps))]
@@ -21,58 +24,74 @@ pub async fn execute(deps: &Deps) -> Result<u64, ApplicationError> {
         "checking enabled reminders"
     );
 
+    let now = Utc::now();
     let mut sent_count = 0u64;
 
-    // One user with no reachable device must not stop the sweep for everyone
-    // scheduled behind them.
-    for reminder in &reminders {
-        if should_send(reminder, &deps.user_query).await? {
-            tracing::info!(user_id = %reminder.user_id(), "sending reminder");
-            match deps.sender.send_reminder(reminder.user_id()).await {
-                Ok(()) => sent_count += 1,
-                Err(error) => {
-                    tracing::warn!(user_id = %reminder.user_id(), %error, "could not send reminder")
-                }
-            }
+    for reminder in reminders {
+        let Some(timezone) = timezone_of(&reminder, deps).await else {
+            continue;
+        };
+
+        let Some(occurrence) = reminder.occurrence_reached(now, &timezone, deps.grace) else {
+            continue;
+        };
+
+        if send(reminder, occurrence, deps).await {
+            sent_count += 1;
         }
     }
 
     tracing::info!(sent_count, "reminder processing completed");
+
     Ok(sent_count)
 }
 
-async fn should_send(
-    reminder: &Reminder,
-    user_query: &Arc<dyn UserQueryPort>,
-) -> Result<bool, ApplicationError> {
-    let user = user_query.find_by_id(reminder.user_id()).await?;
-    let user = match user {
-        Some(u) => u,
-        None => {
+async fn send(mut reminder: Reminder, occurrence: DueOccurrence, deps: &Deps) -> bool {
+    tracing::info!(user_id = %reminder.user_id(), "sending reminder");
+
+    if let Err(error) = deps.sender.send_reminder(reminder.user_id()).await {
+        tracing::warn!(user_id = %reminder.user_id(), %error, "could not send reminder");
+
+        return false;
+    }
+
+    reminder.mark_sent(occurrence);
+
+    if let Err(error) = deps.reminder_command.save(&reminder).await {
+        tracing::error!(
+            reminder_id = %reminder.id(),
+            %error,
+            "sent a reminder but could not record it, so it may be sent again"
+        );
+    }
+
+    true
+}
+
+async fn timezone_of(reminder: &Reminder, deps: &Deps) -> Option<Timezone> {
+    let found = deps.user_query.find_by_id(reminder.user_id()).await;
+
+    let user = match found {
+        Ok(Some(user)) => user,
+        Ok(None) => {
             tracing::warn!(user_id = %reminder.user_id(), "reminder references nonexistent user");
-            return Ok(false);
+
+            return None;
+        }
+        Err(error) => {
+            tracing::warn!(
+                user_id = %reminder.user_id(),
+                %error,
+                "could not read the account behind a reminder, so the rest of the sweep goes on"
+            );
+
+            return None;
         }
     };
 
-    let Some(timezone) = user.timezone() else {
+    if user.timezone().is_none() {
         tracing::debug!(user_id = %reminder.user_id(), "user has no timezone set, skipping reminder");
-        return Ok(false);
-    };
+    }
 
-    let now = Utc::now().with_timezone(&timezone.resolve());
-
-    let weekday = now.weekday();
-    let scheduled_time = match reminder.schedule().time_for(weekday) {
-        Some(time) => time,
-        None => return Ok(false),
-    };
-
-    let current_time = now.time();
-    Ok(is_within_window(current_time, scheduled_time))
-}
-
-fn is_within_window(current: NaiveTime, scheduled: NaiveTime) -> bool {
-    let diff = current.signed_duration_since(scheduled);
-    let minutes = diff.num_minutes();
-    (0..5).contains(&minutes)
+    user.timezone().copied()
 }

@@ -29,7 +29,7 @@ pub struct Deps {
 #[tracing::instrument(skip(deps))]
 pub async fn execute(user_id: UserId, deps: &Deps) -> Result<Vec<u8>, ApplicationError> {
     let entries = EntryComposer::new(deps.dimensions.clone())
-        .compose(deps.entries.find_by_user(&user_id, None, None).await?)
+        .compose(deps.entries.find_all_by_user(&user_id).await?)
         .await?;
 
     let media = gather_media(&entries, deps).await?;
@@ -81,24 +81,44 @@ async fn gather_media(
 ) -> Result<BackupMedia, ApplicationError> {
     let mut photos = Vec::new();
     let mut voice_memos = Vec::new();
+    let mut missing: Vec<String> = Vec::new();
 
     for entry in entries {
         for photo_id in entry.photos() {
-            if let Some(file) = deps.media_storage.get_photo(photo_id).await? {
-                photos.push(MediaBlob {
+            match deps.media_storage.get_photo(photo_id).await {
+                Ok(Some(file)) => photos.push(MediaBlob {
                     id: photo_id.value().to_string(),
                     data: file.data,
-                });
+                    content_type: file.content_type,
+                }),
+                Ok(None) => missing.push(format!("photo {photo_id}")),
+                Err(error) => {
+                    tracing::warn!(%photo_id, %error, "a photo could not be read for the backup");
+                    missing.push(format!("photo {photo_id}"));
+                }
             }
         }
         for memo_id in entry.voice_memos() {
-            if let Some(file) = deps.media_storage.get_voice_memo(memo_id).await? {
-                voice_memos.push(MediaBlob {
+            match deps.media_storage.get_voice_memo(memo_id).await {
+                Ok(Some(file)) => voice_memos.push(MediaBlob {
                     id: memo_id.value().to_string(),
                     data: file.data,
-                });
+                    content_type: file.content_type,
+                }),
+                Ok(None) => missing.push(format!("voice memo {memo_id}")),
+                Err(error) => {
+                    tracing::warn!(%memo_id, %error, "a voice memo could not be read for the backup");
+                    missing.push(format!("voice memo {memo_id}"));
+                }
             }
         }
+    }
+
+    if !missing.is_empty() {
+        tracing::warn!(
+            missing = missing.len(),
+            "some media could not be read, so the backup carries the rest"
+        );
     }
 
     Ok(BackupMedia {

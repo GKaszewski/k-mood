@@ -1,55 +1,50 @@
-import { format, isToday, isYesterday } from "date-fns"
+import { describeDay } from "@/lib/day-label"
+import { formatDate, parseDate } from "@/lib/day"
 import type { EntryResponse } from "@/api/schema"
 import { EntryCard } from "./entry-card"
 
 interface EntryListProps {
   entries: EntryResponse[]
-  limit?: number
 }
 
-export function EntryList({ entries, limit }: EntryListProps) {
-  const sliced = limit ? entries.slice(0, limit) : entries
-  const grouped = groupByDay(sliced)
-
+export function EntryList({ entries }: EntryListProps) {
   return (
     <div className="flex flex-col gap-4">
-      {grouped.map(({ label, entries: onThatDay }) => (
-        <div key={label} className="flex flex-col gap-2">
+      {groupByDay(entries).map(({ day, entries: onThatDay }) => (
+        <section key={day} className="flex flex-col gap-2">
           <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            {label}
+            {describeDay(parseDate(day))}
           </h3>
           {onThatDay.map((entry) => (
             <EntryCard key={entry.id} entry={entry} />
           ))}
-        </div>
+        </section>
       ))}
     </div>
   )
 }
 
-function groupByDay(
+interface DayGroup {
+  day: string
   entries: EntryResponse[]
-): Array<{ label: string; entries: EntryResponse[] }> {
+}
+
+function groupByDay(entries: EntryResponse[]): DayGroup[] {
   const groups = new Map<string, EntryResponse[]>()
 
   for (const entry of entries) {
-    const date = new Date(entry.loggedAt)
-    const key = format(date, "yyyy-MM-dd")
+    const day = formatDate(new Date(entry.loggedAt))
+    const existing = groups.get(day)
 
-    if (!groups.has(key)) {
-      groups.set(key, [])
+    if (existing) {
+      existing.push(entry)
+    } else {
+      groups.set(day, [entry])
     }
-    groups.get(key)!.push(entry)
   }
 
-  return Array.from(groups.entries()).map(([key, onThatDay]) => ({
-    label: formatDayLabel(new Date(key)),
+  return Array.from(groups.entries()).map(([day, onThatDay]) => ({
+    day,
     entries: onThatDay,
   }))
-}
-
-function formatDayLabel(date: Date): string {
-  if (isToday(date)) return "Today"
-  if (isYesterday(date)) return "Yesterday"
-  return format(date, "EEEE, MMMM d, yyyy")
 }

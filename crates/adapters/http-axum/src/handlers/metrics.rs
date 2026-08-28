@@ -1,27 +1,34 @@
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 
 use api_types::mappers::parse_date;
-use api_types::requests::{DateSpanParams, ImportDailyMetricsRequest, SetDailyMetricsRequest};
-use api_types::responses::{DailyMetricResponse, ImportOutcomeResponse, RejectionResponse};
+use api_types::params::DateSpanParams;
+use api_types::requests::{ImportDailyMetricsRequest, SetDailyMetricsRequest};
+use api_types::responses::{
+    DailyMetricResponse, ErrorResponse, ImportOutcomeResponse, RejectionResponse,
+};
 use application::import::commands::ImportDailyMetricsCommand;
 use application::import::use_cases::import_daily_metrics;
 use application::metric::commands::SetDailyMetricsCommand;
-use application::metric::use_cases::{list_daily_metrics, set_daily_metrics};
+use application::metric::use_cases::{list_daily_metrics, list_rejections, set_daily_metrics};
 
 use crate::errors::ApiError;
-use crate::extractors::{AuthenticatedUser, ImportingProvider, MetricWriter};
+use crate::extractors::{Body, ImportingProvider, JournalReader, MetricWriter, Params};
 use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/metrics", tag = "metrics", security(("bearer" = [])),
     params(DateSpanParams),
-    responses((status = 200, body = Vec<DailyMetricResponse>))
+    responses((status = 200, body = Vec<DailyMetricResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_list(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<DateSpanParams>,
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<DateSpanParams>,
 ) -> Result<Json<Vec<DailyMetricResponse>>, ApiError> {
     let span = params.into_span()?;
 
@@ -40,13 +47,17 @@ pub async fn handle_list(
                    only once per request.",
     params(("date" = String, Path, description = "Calendar date, as YYYY-MM-DD")),
     request_body = SetDailyMetricsRequest,
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_set(
     State(state): State<AppState>,
     writer: MetricWriter,
     Path(date): Path<String>,
-    Json(body): Json<SetDailyMetricsRequest>,
+    Body(body): Body<SetDailyMetricsRequest>,
 ) -> Result<StatusCode, ApiError> {
     let date = parse_date(&date)?;
 
@@ -85,12 +96,16 @@ pub async fn handle_set(
                    rejection. Only a payload carrying more days than the configured limit is \
                    refused outright.",
     request_body = ImportDailyMetricsRequest,
-    responses((status = 200, body = ImportOutcomeResponse))
+    responses((status = 200, body = ImportOutcomeResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_import(
     State(state): State<AppState>,
     importer: ImportingProvider,
-    Json(body): Json<ImportDailyMetricsRequest>,
+    Body(body): Body<ImportDailyMetricsRequest>,
 ) -> Result<Json<ImportOutcomeResponse>, ApiError> {
     let deps = import_daily_metrics::Deps {
         metrics: state.daily_metric_command,
@@ -115,13 +130,21 @@ pub async fn handle_import(
     description = "Readings that could not be used, most recent first, whether they arrived \
                    broken from an importer or were stored by an older build and can no longer be \
                    read. Only the most recent are kept.",
-    responses((status = 200, body = Vec<RejectionResponse>))
+    responses((status = 200, body = Vec<RejectionResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_rejections(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalReader(user_id): JournalReader,
 ) -> Result<Json<Vec<RejectionResponse>>, ApiError> {
-    let rejections = state.rejection_query.find_recent_by_user(&user_id).await?;
+    let deps = list_rejections::Deps {
+        rejections: state.rejection_query,
+    };
+
+    let rejections = list_rejections::execute(user_id, &deps).await?;
 
     Ok(Json(rejections.into_iter().map(Into::into).collect()))
 }

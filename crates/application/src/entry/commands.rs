@@ -15,7 +15,7 @@ pub struct CreateEntryCommand {
 #[derive(Debug)]
 pub struct UpdateEntryCommand {
     pub entry_id: MoodEntryId,
-    pub mood: Mood,
+    pub mood: Option<Mood>,
     pub logged_at: Option<DateTime<FixedOffset>>,
-    pub dimensions: Vec<DimensionValue>,
+    pub dimensions: Option<Vec<DimensionValue>>,
 }

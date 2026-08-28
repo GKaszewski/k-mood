@@ -11,9 +11,27 @@ pub enum Mood {
     Rad = 5,
 }
 
+const AWFUL: &str = "Awful";
+const BAD: &str = "Bad";
+const MEH: &str = "Meh";
+const GOOD: &str = "Good";
+const RAD: &str = "Rad";
+
 impl Mood {
+    pub const ALL: [Mood; 5] = [Self::Awful, Self::Bad, Self::Meh, Self::Good, Self::Rad];
+
     pub fn value(&self) -> u8 {
         *self as u8
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Awful => AWFUL,
+            Self::Bad => BAD,
+            Self::Meh => MEH,
+            Self::Good => GOOD,
+            Self::Rad => RAD,
+        }
     }
 }
 

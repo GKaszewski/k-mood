@@ -7,5 +7,6 @@ pub struct RestoreOutcomeResponse {
     pub activities: usize,
     pub reminders: usize,
     pub media: usize,
+    pub skipped: usize,
     pub unreadable: Vec<String>,
 }

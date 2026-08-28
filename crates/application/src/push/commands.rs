@@ -10,5 +10,6 @@ pub struct SubscribePushCommand {
 
 #[derive(Debug)]
 pub struct UnsubscribePushCommand {
+    pub user_id: UserId,
     pub endpoint: String,
 }

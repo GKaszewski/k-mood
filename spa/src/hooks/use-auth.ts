@@ -1,13 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { auth, users } from "@/api/client"
 import { useNavigate } from "@tanstack/react-router"
+import { auth, users } from "@/api/client"
+import {
+  forgetSession,
+  hasSession,
+  refreshToken,
+  rememberSession,
+} from "@/api/session"
+
+/**
+ * The single read of the signed-in account. Everything that needs the profile
+ * goes through this key so one page load makes one request for it.
+ */
+export const CURRENT_USER_KEY = ["auth", "me"] as const
 
 export function useAuth() {
   const { data: user, isLoading } = useQuery({
-    queryKey: ["auth", "me"],
+    queryKey: CURRENT_USER_KEY,
     queryFn: async () => {
-      const token = localStorage.getItem("accessToken")
-      if (!token) return null
+      if (!hasSession()) return null
 
       try {
         return await users.me()
@@ -31,12 +42,11 @@ export function useLogin() {
   const navigate = useNavigate()
 
   return useMutation({
-    meta: { success: "Welcome back!", silent: false },
+    meta: { silent: true, success: "Welcome back!" },
     mutationFn: (body: { identifier: string; password: string }) =>
       auth.login(body),
     onSuccess: (data) => {
-      localStorage.setItem("accessToken", data.accessToken)
-      localStorage.setItem("refreshToken", data.refreshToken)
+      rememberSession(data)
       queryClient.invalidateQueries({ queryKey: ["auth"] })
       navigate({ to: "/" })
     },
@@ -47,7 +57,7 @@ export function useRegister() {
   const navigate = useNavigate()
 
   return useMutation({
-    meta: { success: "Account created! Please log in." },
+    meta: { silent: true, success: "Account created! Please log in." },
     mutationFn: (body: { username: string; email: string; password: string }) =>
       auth.register(body),
     onSuccess: () => {
@@ -63,14 +73,13 @@ export function useLogout() {
   return useMutation({
     meta: { silent: true },
     mutationFn: async () => {
-      const refreshToken = localStorage.getItem("refreshToken")
-      if (refreshToken) {
-        await auth.logout(refreshToken)
+      const token = refreshToken()
+      if (token) {
+        await auth.logout(token)
       }
     },
     onSettled: () => {
-      localStorage.removeItem("accessToken")
-      localStorage.removeItem("refreshToken")
+      forgetSession()
       queryClient.clear()
       navigate({ to: "/login" })
     },

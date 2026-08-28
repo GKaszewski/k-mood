@@ -1,20 +1,24 @@
 use axum::Json;
 use axum::extract::{Multipart, State};
 
-use api_types::responses::ImportResultResponse;
+use api_types::responses::{ErrorResponse, ImportResultResponse};
 use application::import::commands::ImportCommand;
 use application::import::use_cases::import_entries;
 
 use crate::errors::ApiError;
-use crate::extractors::{AuthenticatedUser, extract_file_bytes};
+use crate::extractors::{SessionUser, extract_file_bytes};
 use crate::state::AppState;
 
 #[utoipa::path(post, path = "/api/v1/data/import", tag = "data", security(("bearer" = [])),
-    responses((status = 200, body = ImportResultResponse))
+    responses((status = 200, body = ImportResultResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_import(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
     multipart: Multipart,
 ) -> Result<Json<ImportResultResponse>, ApiError> {
     let data = extract_file_bytes(multipart).await?;

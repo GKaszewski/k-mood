@@ -48,6 +48,24 @@ impl domain::ports::RecordingBackfillQueryPort for SqliteRecordingBackfillReposi
         Ok(rows.iter().filter_map(readable).collect())
     }
 
+    async fn find_song_without_a_recording(
+        &self,
+        entry_id: &MoodEntryId,
+    ) -> Result<Option<UnidentifiedSong>, DomainError> {
+        let row: Option<UnidentifiedSongRow> = sqlx::query_as(
+            "SELECT s.entry_id, e.user_id, s.title, s.artist
+             FROM entry_song s
+             JOIN mood_entries e ON e.id = s.entry_id
+             WHERE s.recording_id IS NULL AND s.entry_id = ?",
+        )
+        .bind(entry_id.value().to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?;
+
+        Ok(row.as_ref().and_then(readable))
+    }
+
     async fn record_identity(
         &self,
         entry_id: &MoodEntryId,

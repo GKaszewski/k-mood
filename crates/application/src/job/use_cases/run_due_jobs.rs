@@ -95,13 +95,13 @@ async fn observe_weather(job: &Job, deps: &Deps) -> Result<(), String> {
         return Err("weather lookups are switched off".into());
     };
 
-    let waiting = deps
+    let found = deps
         .places
-        .find_places_without_weather(usize::MAX)
+        .find_place_without_weather(entry_id)
         .await
         .map_err(|error| error.to_string())?;
 
-    let Some(place) = waiting.iter().find(|place| &place.entry_id == entry_id) else {
+    let Some(place) = found else {
         return Ok(());
     };
 
@@ -116,7 +116,7 @@ async fn observe_weather(job: &Job, deps: &Deps) -> Result<(), String> {
         return Ok(());
     };
 
-    remember_weather(place, weather, deps).await
+    remember_weather(&place, weather, deps).await
 }
 
 async fn remember_weather(
@@ -133,13 +133,13 @@ async fn remember_weather(
 async fn backfill_recording_identity(job: &Job, deps: &Deps) -> Result<(), String> {
     let JobSubject::Entry(entry_id) = job.subject();
 
-    let waiting = deps
+    let found = deps
         .backfill
-        .find_songs_without_a_recording(usize::MAX)
+        .find_song_without_a_recording(entry_id)
         .await
         .map_err(|error| error.to_string())?;
 
-    let Some(song) = waiting.iter().find(|song| &song.entry_id == entry_id) else {
+    let Some(song) = found else {
         return Ok(());
     };
 
@@ -155,7 +155,7 @@ async fn backfill_recording_identity(job: &Job, deps: &Deps) -> Result<(), Strin
         return Ok(());
     };
 
-    remember(song, &recording_id, deps).await
+    remember(&song, &recording_id, deps).await
 }
 
 async fn remember(

@@ -2,21 +2,18 @@ use std::sync::Arc;
 
 use domain::errors::DomainError;
 use domain::ports::{
-    CascadeDeletePort, EntryDimensionPort, EventPublisherPort, MediaStoragePort,
-    MoodEntryQueryPort, UserQueryPort,
+    CascadeDeletePort, EventPublisherPort, MediaOwnershipPort, MediaStoragePort, UserQueryPort,
 };
 use domain::user::UserId;
 
-use crate::entry::composition::EntryComposer;
 use crate::errors::ApplicationError;
-use crate::media::cleanup::delete_media_for;
+use crate::media::cleanup::delete_everything_owned_by;
 
 pub struct Deps {
     pub user_query: Arc<dyn UserQueryPort>,
-    pub entry_query: Arc<dyn MoodEntryQueryPort>,
-    pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
     pub cascade: Arc<dyn CascadeDeletePort>,
     pub media_storage: Arc<dyn MediaStoragePort>,
+    pub media_ownership: Arc<dyn MediaOwnershipPort>,
     pub events: Arc<dyn EventPublisherPort>,
 }
 
@@ -27,14 +24,12 @@ pub async fn execute(user_id: UserId, deps: &Deps) -> Result<(), ApplicationErro
         .await?
         .ok_or_else(|| DomainError::NotFound("user not found".into()))?;
 
-    let entries = deps.entry_query.find_by_user(&user_id, None, None).await?;
-    let composed = EntryComposer::new(deps.dimensions.clone())
-        .compose(entries)
-        .await?;
-    delete_media_for(&composed, &deps.media_storage).await;
+    let blobs =
+        delete_everything_owned_by(&user_id, &deps.media_storage, &deps.media_ownership).await?;
 
     deps.cascade.delete_user_account(&user_id).await?;
 
-    tracing::info!(%user_id, "user account deleted");
+    tracing::info!(%user_id, blobs, "user account deleted");
+
     Ok(())
 }

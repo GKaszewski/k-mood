@@ -11,6 +11,7 @@ config.workspace = true
 web-push-adapter.workspace = true
 axum.workspace = true
 tower-http.workspace = true
+tower_governor.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -18,3 +19,8 @@ uuid.workspace = true
 utoipa.workspace = true
 utoipa-scalar.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+http-body-util.workspace = true
+tokio.workspace = true

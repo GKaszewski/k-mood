@@ -1,5 +1,6 @@
-use crate::attachment::{ContentType, MediaUpload, PhotoId, VoiceMemoId};
+use crate::attachment::{ContentType, MediaRef, MediaUpload, PhotoId, VoiceMemoId};
 use crate::errors::DomainError;
+use crate::user::UserId;
 
 pub struct MediaFile {
     pub data: Vec<u8>,
@@ -14,4 +15,13 @@ pub trait MediaStoragePort: Send + Sync {
     async fn get_voice_memo(&self, id: &VoiceMemoId) -> Result<Option<MediaFile>, DomainError>;
     async fn delete_photo(&self, id: &PhotoId) -> Result<(), DomainError>;
     async fn delete_voice_memo(&self, id: &VoiceMemoId) -> Result<(), DomainError>;
+}
+
+#[async_trait::async_trait]
+pub trait MediaOwnershipPort: Send + Sync {
+    async fn remember(&self, owner: &UserId, media: MediaRef) -> Result<(), DomainError>;
+    async fn owner_of(&self, media: MediaRef) -> Result<Option<UserId>, DomainError>;
+    async fn owned_by(&self, owner: &UserId) -> Result<Vec<MediaRef>, DomainError>;
+    async fn forget(&self, media: MediaRef) -> Result<(), DomainError>;
+    async fn forget_all_by_user(&self, owner: &UserId) -> Result<(), DomainError>;
 }

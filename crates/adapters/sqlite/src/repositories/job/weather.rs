@@ -47,6 +47,25 @@ impl domain::ports::WeatherBacklogQueryPort for SqliteWeatherBacklogRepository {
 
         Ok(rows.iter().filter_map(readable).collect())
     }
+
+    async fn find_place_without_weather(
+        &self,
+        entry_id: &MoodEntryId,
+    ) -> Result<Option<UnwatchedPlace>, DomainError> {
+        let row: Option<UnwatchedPlaceRow> = sqlx::query_as(
+            "SELECT l.entry_id, l.latitude, l.longitude, e.logged_at
+             FROM entry_location l
+             JOIN mood_entries e ON e.id = l.entry_id
+             LEFT JOIN entry_weather w ON w.entry_id = l.entry_id
+             WHERE w.entry_id IS NULL AND l.entry_id = ?",
+        )
+        .bind(entry_id.value().to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db_err)?;
+
+        Ok(row.as_ref().and_then(readable))
+    }
 }
 
 fn readable(row: &UnwatchedPlaceRow) -> Option<UnwatchedPlace> {

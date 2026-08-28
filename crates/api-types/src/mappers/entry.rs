@@ -1,18 +1,18 @@
 use chrono::Utc;
 
 use config::EntryConfig;
+use domain::activity::ActivityId;
 use domain::dimension::{ComposedEntry, DimensionValue};
-use domain::entry::{DateRange, Mood, MoodEntryId};
+use domain::entry::{DateRange, EntrySelection, Mood, MoodEntryId, Pagination};
 use domain::user::UserId;
 
 use application::entry::commands::{CreateEntryCommand, UpdateEntryCommand};
-use application::entry::queries::{
-    FilterByActivityQuery, FilterByMoodQuery, ListEntriesQuery, MoodStatsQuery,
-};
+use application::entry::queries::{ListEntriesQuery, MoodStatsQuery};
 
 use crate::dimension::DimensionPayload;
 use crate::errors::ApiValidationError;
-use crate::requests::{CreateEntryRequest, DateRangeParams, ListEntriesParams, UpdateEntryRequest};
+use crate::params::{DateRangeParams, ListEntriesParams};
+use crate::requests::{CreateEntryRequest, UpdateEntryRequest};
 use crate::responses::EntryResponse;
 
 use super::shared::{parse_datetime, validate_content_length};
@@ -45,9 +45,13 @@ impl UpdateEntryRequest {
         entry_id: MoodEntryId,
         config: &EntryConfig,
     ) -> Result<UpdateEntryCommand, ApiValidationError> {
-        let mood = Mood::try_from(self.mood)?;
+        let mood = self.mood.map(Mood::try_from).transpose()?;
         let logged_at = self.logged_at.as_deref().map(parse_datetime).transpose()?;
-        let dimensions = parse_dimensions(self.dimensions, config)?;
+
+        let dimensions = match self.dimensions {
+            Some(named) => Some(parse_dimensions(Some(named), config)?),
+            None => None,
+        };
 
         Ok(UpdateEntryCommand {
             entry_id,
@@ -59,7 +63,11 @@ impl UpdateEntryRequest {
 }
 
 impl ListEntriesParams {
-    pub fn into_query(self, user_id: UserId) -> Result<ListEntriesQuery, ApiValidationError> {
+    pub fn into_query(
+        self,
+        user_id: UserId,
+        config: &EntryConfig,
+    ) -> Result<ListEntriesQuery, ApiValidationError> {
         let range = match (self.from, self.to) {
             (Some(from), Some(to)) => Some(DateRange::new(
                 parse_datetime(&from)?,
@@ -67,13 +75,41 @@ impl ListEntriesParams {
             )?),
             _ => None,
         };
-        Ok(ListEntriesQuery {
-            user_id,
-            range,
-            limit: self.limit,
-            offset: self.offset,
-        })
+
+        let activity = self
+            .activity
+            .as_deref()
+            .map(parse_activity_id)
+            .transpose()?;
+
+        let updated_since = self
+            .updated_since
+            .as_deref()
+            .map(parse_datetime)
+            .transpose()?
+            .map(|instant| instant.with_timezone(&Utc));
+
+        let selection = EntrySelection::everything_of(user_id)
+            .logged_within(range)
+            .of_mood(self.mood.map(Mood::try_from).transpose()?)
+            .tagged_with(activity)
+            .changed_since(updated_since);
+
+        let page = Pagination::new(
+            self.limit.unwrap_or(config.max_entries_per_page),
+            self.offset.unwrap_or(0),
+            config.max_entries_per_page,
+        )?;
+
+        Ok(ListEntriesQuery { selection, page })
     }
+}
+
+fn parse_activity_id(named: &str) -> Result<ActivityId, ApiValidationError> {
+    named
+        .parse()
+        .map(ActivityId::from_uuid)
+        .map_err(|_| ApiValidationError::Invalid(format!("{named} is not an activity id")))
 }
 
 impl DateRangeParams {
@@ -87,27 +123,6 @@ impl DateRangeParams {
         let range = Some(self.into_date_range()?);
         Ok(MoodStatsQuery { user_id, range })
     }
-
-    pub fn into_mood_filter(
-        self,
-        user_id: UserId,
-        mood: u8,
-    ) -> Result<FilterByMoodQuery, ApiValidationError> {
-        let mood = Mood::try_from(mood)?;
-        Ok(FilterByMoodQuery { user_id, mood })
-    }
-
-    pub fn into_activity_filter(
-        self,
-        user_id: UserId,
-        activity_id: &str,
-    ) -> Result<FilterByActivityQuery, ApiValidationError> {
-        let activity_id = super::shared::parse_uuid(activity_id)?.into();
-        Ok(FilterByActivityQuery {
-            user_id,
-            activity_id,
-        })
-    }
 }
 
 impl From<ComposedEntry> for EntryResponse {
@@ -118,7 +133,7 @@ impl From<ComposedEntry> for EntryResponse {
             id: entry.id().value(),
             user_id: entry.user_id().value(),
             mood: entry.mood().value(),
-            mood_label: format!("{:?}", entry.mood()),
+            mood_label: entry.mood().label().to_string(),
             logged_at: *entry.logged_at(),
             photo_urls: composed
                 .photos()

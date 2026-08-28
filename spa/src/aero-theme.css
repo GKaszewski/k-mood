@@ -6,24 +6,30 @@
 
 /* ── Aero color overrides ─────────────────────────────────────── */
 
-:root {
+/*
+ * One palette, under both selectors. shadcn ships a `.dark` block of its own;
+ * naming it here means it never wins, and there is only one place a colour is
+ * written down. This theme does not have a second mode to switch to.
+ */
+:root,
+.dark {
   --background: transparent;
   --foreground: oklch(0.985 0 0);
-  --card: rgba(255, 255, 255, 0.08);
+  --card: rgba(18, 22, 34, 0.55);
   --card-foreground: oklch(0.985 0 0);
   --popover: rgba(20, 20, 30, 0.85);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.852 0.199 91.936);
   --primary-foreground: #fff;
-  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary: rgba(255, 255, 255, 0.12);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: rgba(255, 255, 255, 0.6);
+  --muted: rgba(255, 255, 255, 0.1);
+  --muted-foreground: rgba(255, 255, 255, 0.85);
   --accent: rgba(255, 255, 255, 0.1);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: rgba(200, 60, 60, 0.65);
-  --border: rgba(255, 255, 255, 0.15);
-  --input: rgba(255, 255, 255, 0.1);
+  --destructive: rgba(226, 88, 88, 0.85);
+  --border: rgba(255, 255, 255, 0.22);
+  --input: rgba(255, 255, 255, 0.14);
   --ring: oklch(0.852 0.199 91.936 / 0.4);
   --chart-1: oklch(0.852 0.199 91.936);
   --chart-2: oklch(0.89 0.13 91.936);
@@ -43,46 +49,24 @@
   --aero-primary-mid: oklch(0.89 0.13 91.936);
   --aero-primary-light: oklch(0.93 0.07 91.936);
   --aero-primary-glow: oklch(0.852 0.199 91.936 / 0.3);
-  --aero-glass-bg: rgba(255, 255, 255, 0.12);
-  --aero-glass-border: rgba(255, 255, 255, 0.2);
+  /*
+   * Dark-tinted glass. White text over white glass measured ~1.4:1 against the
+   * bright parts of the photo behind it; a dark ground puts it above 7:1
+   * without touching the background or losing the blur.
+   */
+  --aero-glass-bg: rgba(18, 22, 34, 0.55);
+  --aero-glass-border: rgba(255, 255, 255, 0.22);
   --aero-glass-shadow: 0 8px 32px oklch(0.852 0.199 91.936 / 0.1);
   --aero-glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   --aero-blur: 12px;
-}
 
-/* Force dark — override any .dark block from shadcn defaults */
-.dark {
-  --background: transparent;
-  --foreground: oklch(0.985 0 0);
-  --card: rgba(255, 255, 255, 0.08);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: rgba(20, 20, 30, 0.85);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.852 0.199 91.936);
-  --primary-foreground: #fff;
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: rgba(255, 255, 255, 0.6);
-  --accent: rgba(255, 255, 255, 0.1);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: rgba(200, 60, 60, 0.65);
-  --border: rgba(255, 255, 255, 0.15);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: oklch(0.852 0.199 91.936 / 0.4);
-  --chart-1: oklch(0.852 0.199 91.936);
-  --chart-2: oklch(0.89 0.13 91.936);
-  --chart-3: oklch(0.93 0.07 91.936);
-  --chart-4: rgba(255, 255, 255, 0.4);
-  --chart-5: rgba(255, 255, 255, 0.2);
-  --sidebar: rgba(0, 0, 0, 0.4);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.852 0.199 91.936);
-  --sidebar-primary-foreground: #fff;
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: oklch(0.852 0.199 91.936 / 0.4);
+  /*
+   * The reading column gets a little more veil than the rest of the page, so
+   * headings and captions that sit outside a card stay legible over the
+   * brightest parts of the photo. On a wide screen the margins keep the
+   * lighter scrim, and the background stays as bright as it was.
+   */
+  --aero-column-veil: rgba(0, 0, 0, 0.35);
 }
 
 /* ── Background treatment ─────────────────────────────────────── */
@@ -95,7 +79,7 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 0;
   pointer-events: none;
 }
@@ -107,69 +91,8 @@ body > #root {
 
 /* ── Utility classes ──────────────────────────────────────────── */
 
-@utility glass {
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  background: var(--aero-glass-bg);
-  border: 1px solid var(--aero-glass-border);
-}
-
-@utility glass-card {
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  background: var(--aero-glass-bg);
-  border: 1px solid var(--aero-glass-border);
-  box-shadow: var(--aero-glass-shadow), var(--aero-glass-inset);
-  position: relative;
-  overflow: hidden;
-}
-
-@utility glass-heavy {
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-@utility aero-glow {
-  text-shadow:
-    0 0 8px var(--aero-primary-glow),
-    0 0 2px var(--aero-primary);
-}
-
-@utility aero-pill {
-  border-radius: 999px;
-  border: 1px solid var(--aero-glass-border);
-  background: transparent;
-}
-
-/* ── Glass card gradient overlay ──────────────────────────────── */
-
-.glass-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), transparent);
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ── Hover lift (pointer devices only) ────────────────────────── */
-
-@media (hover: hover) {
-  .aero-lift {
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .aero-lift:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 12px 40px var(--aero-primary-glow),
-      var(--aero-glass-inset);
-  }
+@utility app-column {
+  background: var(--aero-column-veil);
 }
 
 /* ── shadcn data-slot overrides ───────────────────────────────── */
@@ -199,21 +122,8 @@ body > #root {
   --tw-ring-shadow: none;
 }
 
-[data-slot="sheet-overlay"] {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-[data-slot="sheet-content"] {
-  background: rgba(20, 20, 30, 0.85);
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
 [data-slot="input"] {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
   border-color: var(--aero-glass-border);
 }
 
@@ -246,7 +156,11 @@ body > #root {
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.25), transparent);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
   border-radius: inherit;
   pointer-events: none;
 }
@@ -262,7 +176,7 @@ body > #root {
 
 /* Destructive button — glassmorphic red */
 [data-slot="button"][data-variant="destructive"] {
-  background: rgba(200, 60, 60, 0.65);
+  background: rgba(190, 55, 55, 0.8);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   border: 1px solid rgba(220, 80, 80, 0.3);
@@ -285,73 +199,4 @@ body > #root {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-}
-
-/* Sonner toast */
-[data-sonner-toaster] [data-sonner-toast] {
-  background: rgba(20, 20, 30, 0.85);
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  border-color: rgba(255, 255, 255, 0.15);
-  color: oklch(0.985 0 0);
-}
-
-/* Chart label readability */
-[data-slot="chart"] .recharts-cartesian-axis-tick text {
-  fill: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* Tooltip — default shadcn uses bg-foreground which is white in this theme */
-[data-slot="tooltip-content"] {
-  background: var(--popover);
-  color: var(--popover-foreground);
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-[data-slot="tooltip-content"] .lucide,
-[data-slot="tooltip-content"] [data-slot="tooltip-arrow"] {
-  color: var(--popover-foreground);
-}
-
-/* Context menu */
-[data-slot="context-menu-content"] {
-  background: var(--popover);
-  backdrop-filter: blur(var(--aero-blur));
-  -webkit-backdrop-filter: blur(var(--aero-blur));
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-/* Star glow for filled amber stars */
-.aero-star-filled {
-  filter: drop-shadow(0 0 4px var(--aero-primary-glow)) drop-shadow(0 0 1px var(--aero-primary));
-}
-
-/* ── Keyframe animations ────────────────────────────────────── */
-
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes aero-page-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .aero-page-in {
-    animation: aero-page-in 0.25s ease-out both;
-  }
-
-  @keyframes aero-star-pop {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.35); }
-    100% { transform: scale(1); }
-  }
-  .aero-star-pop {
-    animation: aero-star-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  }
-
-  .aero-poster-hover {
-    transition: transform 0.2s ease-out;
-  }
-  .aero-poster-hover:hover {
-    transform: scale(1.04);
-  }
 }

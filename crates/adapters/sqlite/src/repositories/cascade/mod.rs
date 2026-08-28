@@ -5,7 +5,17 @@ use domain::errors::DomainError;
 use domain::user::UserId;
 
 use super::entry::rows::{EntryRow, hydrate_batch};
-use super::shared::db_err;
+use super::shared::{db_err, sortable_instant};
+
+const EVERY_TABLE_THAT_HOLDS_WHAT_A_USER_LOGGED: [&str; 7] = [
+    "mood_entries",
+    "activities",
+    "reminders",
+    "daily_metrics",
+    "cycle_starts",
+    "metric_rejections",
+    "media_owners",
+];
 
 pub struct SqliteCascadeDeleteRepository {
     pool: SqlitePool,
@@ -23,29 +33,15 @@ impl domain::ports::CascadeDeletePort for SqliteCascadeDeleteRepository {
         let uid = user_id.value().to_string();
         let mut tx = self.pool.begin().await.map_err(db_err)?;
 
-        sqlx::query("DELETE FROM mood_entries WHERE user_id = ?")
+        for table in EVERY_TABLE_THAT_HOLDS_WHAT_A_USER_LOGGED {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE user_id = ?"
+            )))
             .bind(&uid)
             .execute(&mut *tx)
             .await
             .map_err(db_err)?;
-
-        sqlx::query("DELETE FROM activities WHERE user_id = ?")
-            .bind(&uid)
-            .execute(&mut *tx)
-            .await
-            .map_err(db_err)?;
-
-        sqlx::query("DELETE FROM reminders WHERE user_id = ?")
-            .bind(&uid)
-            .execute(&mut *tx)
-            .await
-            .map_err(db_err)?;
-
-        sqlx::query("DELETE FROM daily_metrics WHERE user_id = ?")
-            .bind(&uid)
-            .execute(&mut *tx)
-            .await
-            .map_err(db_err)?;
+        }
 
         tx.commit().await.map_err(db_err)?;
         Ok(())
@@ -85,6 +81,12 @@ impl domain::ports::CascadeDeletePort for SqliteCascadeDeleteRepository {
             .await
             .map_err(db_err)?;
 
+        sqlx::query("DELETE FROM media_owners WHERE user_id = ?")
+            .bind(&uid)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_err)?;
+
         sqlx::query("DELETE FROM users WHERE id = ?")
             .bind(&uid)
             .execute(&mut *tx)
@@ -106,8 +108,8 @@ impl domain::ports::CascadeDeletePort for SqliteCascadeDeleteRepository {
             "SELECT * FROM mood_entries WHERE user_id = ? AND logged_at >= ? AND logged_at <= ? ORDER BY logged_at DESC",
         )
         .bind(&uid)
-        .bind(range.start().to_rfc3339())
-        .bind(range.end().to_rfc3339())
+        .bind(sortable_instant(range.start()))
+        .bind(sortable_instant(range.end()))
         .fetch_all(&self.pool)
         .await
         .map_err(db_err)?;
@@ -120,8 +122,8 @@ impl domain::ports::CascadeDeletePort for SqliteCascadeDeleteRepository {
             "DELETE FROM mood_entries WHERE user_id = ? AND logged_at >= ? AND logged_at <= ?",
         )
         .bind(&uid)
-        .bind(range.start().to_rfc3339())
-        .bind(range.end().to_rfc3339())
+        .bind(sortable_instant(range.start()))
+        .bind(sortable_instant(range.end()))
         .execute(&mut *tx)
         .await
         .map_err(db_err)?;

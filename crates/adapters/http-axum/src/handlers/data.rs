@@ -3,13 +3,13 @@ use axum::extract::{Multipart, State};
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 
-use api_types::responses::RestoreOutcomeResponse;
+use api_types::responses::{ErrorResponse, RestoreOutcomeResponse};
 use application::export::use_cases::{write_backup, write_extract};
 use application::restore::commands::RestoreBackupCommand;
 use application::restore::use_cases::restore_backup;
 
 use crate::errors::ApiError;
-use crate::extractors::{AuthenticatedUser, extract_file_bytes};
+use crate::extractors::{SessionUser, extract_file_bytes};
 use crate::state::AppState;
 
 const BACKUP_FILENAME: &str = "k-mood-complete-backup.zip";
@@ -20,11 +20,15 @@ const EXTRACT_FILENAME: &str = "k-mood-shareable-journal.md";
                    every cycle start, the activity catalogue, reminders, preferences and all \
                    media. Restores through /data/restore. Keep it private — it holds everything \
                    the account knows.",
-    responses((status = 200, description = "A zip archive", content_type = "application/zip"))
+    responses((status = 200, description = "A zip archive", content_type = "application/zip"),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_backup(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
 ) -> Result<impl IntoResponse, ApiError> {
     let deps = write_backup::Deps {
         entries: state.entry_query,
@@ -48,11 +52,15 @@ pub async fn handle_backup(
                    readable markdown document. It carries no places, no health readings, no \
                    cycle records and no media, and it cannot be restored from. This is the one \
                    to hand to someone.",
-    responses((status = 200, description = "A markdown document", content_type = "text/markdown"))
+    responses((status = 200, description = "A markdown document", content_type = "text/markdown"),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_extract(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
 ) -> Result<impl IntoResponse, ApiError> {
     let deps = write_extract::Deps {
         entries: state.entry_query,
@@ -74,16 +82,23 @@ pub async fn handle_extract(
     description = "Restores a complete backup into this account. Existing data is kept: a \
                    restore adds, it does not replace. Anything in the archive this build cannot \
                    read is reported rather than silently dropped.",
-    responses((status = 200, body = RestoreOutcomeResponse))
+    responses((status = 200, body = RestoreOutcomeResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_restore(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    SessionUser(user_id): SessionUser,
     multipart: Multipart,
 ) -> Result<Json<RestoreOutcomeResponse>, ApiError> {
     let data = extract_file_bytes(multipart).await?;
 
     let deps = restore_backup::Deps {
+        entry_query: state.entry_query.clone(),
+        reminder_query: state.reminder_query.clone(),
+        media_ownership: state.media_ownership.clone(),
         reader: state.backup_reader,
         entry_command: state.entry_command,
         dimensions: state.dimensions,

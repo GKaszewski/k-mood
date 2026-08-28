@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use domain::errors::DomainError;
 use domain::ports::{ReminderCommandPort, ReminderSenderPort, UserCommandPort};
@@ -71,8 +71,10 @@ async fn a_failing_send_does_not_abort_the_sweep() {
     let sender = Arc::new(FlakySender::new(broken.id().clone()));
     let deps = process_due_reminders::Deps {
         reminder_query: store.clone(),
+        reminder_command: store.clone(),
         user_query: store.clone(),
         sender: sender.clone(),
+        grace: Duration::minutes(30),
     };
 
     let sent = process_due_reminders::execute(&deps).await.unwrap();
@@ -83,5 +85,91 @@ async fn a_failing_send_does_not_abort_the_sweep() {
     assert!(
         attempts.contains(broken.id()) && attempts.contains(healthy.id()),
         "both users should have been attempted regardless of order, got {attempts:?}"
+    );
+}
+
+struct CountingSender {
+    attempts: Mutex<Vec<UserId>>,
+}
+
+impl CountingSender {
+    fn new() -> Self {
+        Self {
+            attempts: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn count(&self) -> usize {
+        self.attempts.lock().unwrap().len()
+    }
+}
+
+#[async_trait::async_trait]
+impl ReminderSenderPort for CountingSender {
+    async fn send_reminder(&self, user_id: &UserId) -> Result<(), DomainError> {
+        self.attempts.lock().unwrap().push(user_id.clone());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_reminder_is_sent_once_however_often_the_sweep_runs() {
+    let store = Arc::new(InMemoryStore::new());
+
+    let mut user = test_user("nadia");
+    user.update_timezone(Some(Timezone::new("UTC").unwrap()));
+    UserCommandPort::save(&*store, &user).await.unwrap();
+    ReminderCommandPort::save(&*store, &due_now(user.id().clone()))
+        .await
+        .unwrap();
+
+    let sender = Arc::new(CountingSender::new());
+    let deps = process_due_reminders::Deps {
+        reminder_query: store.clone(),
+        reminder_command: store.clone(),
+        user_query: store.clone(),
+        sender: sender.clone(),
+        grace: Duration::minutes(30),
+    };
+
+    for _ in 0..5 {
+        process_due_reminders::execute(&deps).await.unwrap();
+    }
+
+    assert_eq!(
+        sender.count(),
+        1,
+        "five sweeps inside one grace window must still send one reminder"
+    );
+}
+
+#[tokio::test]
+async fn a_send_that_fails_is_retried_by_the_next_sweep() {
+    let store = Arc::new(InMemoryStore::new());
+
+    let mut user = test_user("broken");
+    user.update_timezone(Some(Timezone::new("UTC").unwrap()));
+    UserCommandPort::save(&*store, &user).await.unwrap();
+    ReminderCommandPort::save(&*store, &due_now(user.id().clone()))
+        .await
+        .unwrap();
+
+    let sender = Arc::new(FlakySender::new(user.id().clone()));
+    let deps = process_due_reminders::Deps {
+        reminder_query: store.clone(),
+        reminder_command: store.clone(),
+        user_query: store.clone(),
+        sender: sender.clone(),
+        grace: Duration::minutes(30),
+    };
+
+    process_due_reminders::execute(&deps).await.unwrap();
+    process_due_reminders::execute(&deps).await.unwrap();
+
+    assert_eq!(
+        sender.attempts().len(),
+        2,
+        "nothing was delivered, so the occurrence is still owed"
     );
 }

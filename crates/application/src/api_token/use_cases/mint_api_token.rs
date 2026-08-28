@@ -19,10 +19,15 @@ pub async fn execute(
     let secret = deps.secrets.mint();
     let digest = deps.secrets.digest(&secret);
 
-    let token = ApiToken::new(command.user_id, command.name, digest);
+    let token = ApiToken::new(command.user_id, command.name, digest, command.scopes);
     deps.command.save(&token).await?;
 
-    tracing::info!(token_id = %token.id(), name = token.name().value(), "minted an api token");
+    tracing::info!(
+        token_id = %token.id(),
+        name = token.name().value(),
+        scopes = %token.scopes(),
+        "minted an api token"
+    );
 
     Ok(MintedApiToken::new(token, secret))
 }

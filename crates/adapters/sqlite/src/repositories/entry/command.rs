@@ -5,7 +5,7 @@ use domain::entry::{DateRange, MoodEntry, MoodEntryId};
 use domain::errors::DomainError;
 use domain::user::UserId;
 
-use super::super::shared::db_err;
+use super::super::shared::{db_err, sortable_instant};
 
 pub struct SqliteEntryCommandRepository {
     pool: SqlitePool,
@@ -30,7 +30,7 @@ impl domain::ports::MoodEntryCommandPort for SqliteEntryCommandRepository {
         .bind(entry.id().value().to_string())
         .bind(entry.user_id().value().to_string())
         .bind(entry.mood().value() as i32)
-        .bind(entry.logged_at().to_rfc3339())
+        .bind(sortable_instant(entry.logged_at()))
         .bind(entry.created_at().to_rfc3339())
         .bind(entry.updated_at().to_rfc3339())
         .execute(&self.pool)
@@ -56,7 +56,7 @@ impl domain::ports::MoodEntryCommandPort for SqliteEntryCommandRepository {
             .bind(&entry_id)
             .bind(entry.user_id().value().to_string())
             .bind(entry.mood().value() as i32)
-            .bind(entry.logged_at().to_rfc3339())
+            .bind(sortable_instant(entry.logged_at()))
             .bind(entry.created_at().to_rfc3339())
             .bind(entry.updated_at().to_rfc3339())
             .execute(&mut *tx)
@@ -95,8 +95,8 @@ impl domain::ports::MoodEntryCommandPort for SqliteEntryCommandRepository {
             "DELETE FROM mood_entries WHERE user_id = ? AND logged_at >= ? AND logged_at <= ?",
         )
         .bind(user_id.value().to_string())
-        .bind(range.start().to_rfc3339())
-        .bind(range.end().to_rfc3339())
+        .bind(sortable_instant(range.start()))
+        .bind(sortable_instant(range.end()))
         .execute(&self.pool)
         .await
         .map_err(db_err)?;

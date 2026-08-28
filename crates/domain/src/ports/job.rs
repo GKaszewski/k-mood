@@ -51,6 +51,11 @@ pub trait WeatherBacklogQueryPort: Send + Sync {
         &self,
         most: usize,
     ) -> Result<Vec<UnwatchedPlace>, DomainError>;
+
+    async fn find_place_without_weather(
+        &self,
+        entry_id: &crate::entry::MoodEntryId,
+    ) -> Result<Option<UnwatchedPlace>, DomainError>;
 }
 
 #[async_trait::async_trait]
@@ -59,6 +64,11 @@ pub trait RecordingBackfillQueryPort: Send + Sync {
         &self,
         most: usize,
     ) -> Result<Vec<UnidentifiedSong>, DomainError>;
+
+    async fn find_song_without_a_recording(
+        &self,
+        entry_id: &crate::entry::MoodEntryId,
+    ) -> Result<Option<UnidentifiedSong>, DomainError>;
 
     async fn record_identity(
         &self,

@@ -80,3 +80,72 @@ fn user_in(name: &str, timezone: &str) -> domain::user::User {
     user.update_timezone(Some(Timezone::new(timezone).unwrap()));
     user
 }
+
+fn a_user_in_warsaw() -> domain::user::User {
+    user_in("alice", "Europe/Warsaw")
+}
+
+async fn stats_of(
+    store: &Arc<InMemoryStore>,
+    user: &domain::user::User,
+    range: Option<domain::entry::DateRange>,
+) -> get_mood_stats::MoodStats {
+    let deps = get_mood_stats::Deps {
+        query: store.clone(),
+        users: store.clone(),
+    };
+
+    get_mood_stats::execute(
+        MoodStatsQuery {
+            user_id: user.id().clone(),
+            range,
+        },
+        &deps,
+    )
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn the_bounds_are_the_days_the_journal_actually_spans() {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in_warsaw();
+    UserCommandPort::save(store.as_ref(), &user).await.unwrap();
+
+    for days_ago in [0, 5, 40] {
+        let entry = domain::testing::test_entry_days_ago(user.id().clone(), Mood::Good, days_ago);
+        MoodEntryCommandPort::save(store.as_ref(), &entry)
+            .await
+            .unwrap();
+    }
+
+    let stats = stats_of(&store, &user, None).await;
+
+    let today = domain::entry::Date::from_instant(
+        &chrono::Utc::now().fixed_offset(),
+        &domain::user::Timezone::new("Europe/Warsaw").unwrap(),
+    );
+
+    assert_eq!(
+        stats.last_logged_on,
+        Some(today),
+        "the newest entry was logged today"
+    );
+    assert!(
+        stats.first_logged_on.unwrap() < today,
+        "the oldest was forty days back"
+    );
+}
+
+#[tokio::test]
+async fn an_empty_journal_has_no_bounds() {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in_warsaw();
+    UserCommandPort::save(store.as_ref(), &user).await.unwrap();
+
+    let stats = stats_of(&store, &user, None).await;
+
+    assert_eq!(stats.total_entries, 0);
+    assert_eq!(stats.first_logged_on, None);
+    assert_eq!(stats.last_logged_on, None);
+}

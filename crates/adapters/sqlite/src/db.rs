@@ -48,6 +48,22 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "012_entry_weather",
         include_str!("migrations/012_entry_weather.sql"),
     ),
+    (
+        "013_reminder_last_sent",
+        include_str!("migrations/013_reminder_last_sent.sql"),
+    ),
+    (
+        "014_media_ownership",
+        include_str!("migrations/014_media_ownership.sql"),
+    ),
+    (
+        "015_logged_at_in_utc",
+        include_str!("migrations/015_logged_at_in_utc.sql"),
+    ),
+    (
+        "016_api_token_scopes",
+        include_str!("migrations/016_api_token_scopes.sql"),
+    ),
 ];
 
 const TAKE_THE_WRITE_LOCK_UP_FRONT: &str = "BEGIN IMMEDIATE";
@@ -56,6 +72,13 @@ const SCHEMA_MIGRATIONS_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrati
     name TEXT PRIMARY KEY NOT NULL,
     applied_at TEXT NOT NULL
 )";
+
+pub fn migrations_before(name: &str) -> impl Iterator<Item = (&'static str, &'static str)> {
+    MIGRATIONS
+        .iter()
+        .take_while(move |(applied, _)| *applied != name)
+        .copied()
+}
 
 pub async fn create_pool(database_url: &str) -> Result<SqlitePool, sqlx::Error> {
     let options: SqliteConnectOptions = database_url

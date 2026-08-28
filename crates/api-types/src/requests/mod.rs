@@ -13,11 +13,10 @@ pub use activity::{CreateActivityRequest, RenameActivityRequest, SetCategoryRequ
 pub use api_token::MintApiTokenRequest;
 pub use cycle::SetPreferencesRequest;
 pub use entry::{
-    CreateEntryRequest, DateRangeParams, ListEntriesParams, ReplaceActivityRequest,
-    UpdateEntryRequest,
+    CreateEntriesRequest, CreateEntryRequest, ReplaceActivityRequest, UpdateEntryRequest,
 };
 pub use import::{ImportDailyMetricsRequest, ImportedDayPayload, ImportedMetricPayload};
-pub use metric::{DateSpanParams, MetricPayload, SetDailyMetricsRequest};
+pub use metric::{MetricPayload, SetDailyMetricsRequest};
 pub use provider::ConnectProviderRequest;
 pub use push::{PushSubscribeRequest, PushUnsubscribeRequest};
 pub use reminder::{CreateReminderRequest, UpdateReminderRequest};

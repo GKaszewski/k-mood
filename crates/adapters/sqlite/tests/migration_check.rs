@@ -140,3 +140,106 @@ async fn a_process_joining_a_migrated_database_applies_nothing() {
 
     forget(&path);
 }
+
+#[tokio::test]
+async fn legacy_instants_are_rewritten_into_one_sortable_form() {
+    let pool = fresh_pool().await;
+    sqlite::run_migrations(&pool).await.unwrap();
+
+    let user = domain::testing::test_user("alice");
+    domain::ports::UserCommandPort::save(
+        &sqlite::repositories::SqliteUserCommandRepository::new(pool.clone()),
+        &user,
+    )
+    .await
+    .unwrap();
+
+    let legacy = [
+        ("2026-08-25T20:00:00+02:00", "2026-08-25T18:00:00+00:00"),
+        ("2026-08-24T21:30:00-04:00", "2026-08-25T01:30:00+00:00"),
+        ("2026-08-23T09:00:00+00:00", "2026-08-23T09:00:00+00:00"),
+    ];
+
+    for (index, (written, _)) in legacy.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO mood_entries (id, user_id, mood, logged_at, created_at, updated_at)
+             VALUES (?, ?, 3, ?, ?, ?)",
+        )
+        .bind(format!("00000000-0000-0000-0000-00000000000{index}"))
+        .bind(user.id().value().to_string())
+        .bind(written)
+        .bind(written)
+        .bind(written)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    sqlx::raw_sql(include_str!("../src/migrations/015_logged_at_in_utc.sql"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    for (index, (written, expected)) in legacy.iter().enumerate() {
+        let (held,): (String,) = sqlx::query_as("SELECT logged_at FROM mood_entries WHERE id = ?")
+            .bind(format!("00000000-0000-0000-0000-00000000000{index}"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(held, *expected, "{written} should normalise to {expected}");
+    }
+}
+
+#[tokio::test]
+async fn a_token_minted_before_scopes_existed_still_writes_metrics() {
+    let pool = fresh_pool().await;
+
+    for (name, sql) in sqlite::migrations_before("016_api_token_scopes") {
+        sqlx::raw_sql(sql)
+            .execute(&pool)
+            .await
+            .unwrap_or_else(|error| panic!("{name} failed: {error}"));
+    }
+
+    let user = domain::testing::test_user("alice");
+    domain::ports::UserCommandPort::save(
+        &sqlite::repositories::SqliteUserCommandRepository::new(pool.clone()),
+        &user,
+    )
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO api_tokens (id, user_id, name, digest, scope, created_at)
+         VALUES (?, ?, 'tasker', 'abc123', 'writeMetrics', ?)",
+    )
+    .bind(uuid::Uuid::new_v4().to_string())
+    .bind(user.id().value().to_string())
+    .bind(chrono::Utc::now().to_rfc3339())
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::raw_sql(include_str!("../src/migrations/016_api_token_scopes.sql"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let found = domain::ports::ApiTokenQueryPort::find_by_digest(
+        &sqlite::repositories::SqliteApiTokenQueryRepository::new(pool.clone()),
+        &domain::api_token::TokenDigest::from_persistence("abc123".into()),
+    )
+    .await
+    .unwrap()
+    .expect("the token should have survived the migration");
+
+    assert!(
+        found.allows(domain::api_token::TokenScope::WriteMetrics),
+        "a token minted before scopes existed keeps doing what it always did"
+    );
+    assert!(
+        !found.allows(domain::api_token::TokenScope::ReadJournal),
+        "and gains nothing it was never granted"
+    );
+}

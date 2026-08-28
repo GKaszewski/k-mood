@@ -23,7 +23,7 @@ Optional markdown text attached to a MoodEntry. Serves both quick annotations ("
 _Avoid_: Note, quick note, description, journal entry
 
 **Activity**:
-A named item from a user's personal catalog, tagged onto MoodEntries. Covers heterogeneous concepts (social contexts like "friends", health actions like "exercise", sleep indicators like "good sleep") under one umbrella term. Each Activity belongs to exactly one User. Activities are archivable — archived Activities remain on historical entries but cannot be tagged onto new ones.
+A named item from a user's personal catalog, tagged onto MoodEntries. Covers heterogeneous concepts (social contexts like "friends", health actions like "exercise", sleep indicators like "good sleep") under one umbrella term. Each Activity belongs to exactly one User. Activities are archivable — an archived Activity stays on every entry already wearing it, and those entries stay editable, but it cannot be added to an entry that does not already carry it. Unarchiving makes it taggable again.
 _Avoid_: Tag, label, habit, tracker
 
 **Category**:
@@ -43,8 +43,12 @@ _Avoid_: TZ, offset, locale, region
 ### Scheduling
 
 **Reminder**:
-A per-user notification schedule. Each Reminder defines an `Option<Time>` for each day of the week — `Some(20:00)` means remind at 8 PM, `None` means skip that day. Can be enabled or disabled. A User can have multiple Reminders (e.g., one for morning check-in, one for evening). The domain defines when to remind; clients decide the message and delivery mechanism.
+A per-user notification schedule. Each Reminder defines an `Option<Time>` for each day of the week — `Some(20:00)` means remind at 8 PM, `None` means skip that day. Can be enabled or disabled. A User can have multiple Reminders (e.g., one for morning check-in, one for evening). Remembers the last DueOccurrence it sent, so a schedule is answered once however often it is asked. The domain defines when to remind; clients decide the message and delivery mechanism.
 _Avoid_: Notification, alert, alarm, push
+
+**DueOccurrence**:
+One scheduled firing of one Reminder, identified by the instant its wall clock time resolves to in the User's Timezone. What a Reminder records as sent — not the moment of sending, so asking again about the same occurrence answers no. Reached only once its instant has passed and while it is still inside a configured grace, so a worker that starts late does not deliver a morning that is over.
+_Avoid_: Trigger, firing, due time, schedule slot
 
 ### Measurement
 
@@ -61,8 +65,12 @@ An external system that supplies data. Identified only by name — the domain kn
 _Avoid_: Integration, service, source, connector
 
 **ApiToken**:
-A named, revocable, non-expiring credential a User mints for an automation that cannot hold a session. Scoped to writing DailyMetrics and nothing else — it cannot read entries or touch the account. Its name is the Provider its writes are attributed to, so two tokens of one account cannot share a name. The value is shown once at mint time and held only as a digest.
+A named, revocable, non-expiring credential a User mints for a client that cannot hold a session. Grants the TokenScopes it was minted with and nothing else, and never the account itself — no token can change a password, mint another token, or restore a backup. Its name is the Provider its metric writes are attributed to, so two tokens of one account cannot share a name. The value is shown once at mint time and held only as a digest.
 _Avoid_: API key, secret, personal access token, integration key
+
+**TokenScope**:
+One named thing an ApiToken may do — read the journal, write the journal, write DailyMetrics, read the profile. Named after what a client does, not after the routes it calls, so a route's requirement is a statement about intent. A token holds a non-empty set of them; a name this build does not know is refused rather than ignored, because a typo must never mint a narrower token than the one asked for.
+_Avoid_: Permission, grant, role, capability
 
 **ProviderConnection**:
 A User's standing authorization to a Provider, held as an opaque credential the domain never inspects. Each User supplies their own, and holds at most one per Provider — connecting again replaces it. The domain knows only that a User is or is not connected to a named Provider.
@@ -75,6 +83,14 @@ _Avoid_: Metric type, field, measurement name
 **Date**:
 The calendar day a DailyMetric belongs to, resolved by converting an instant into the User's Timezone. The single day boundary in the system — MoodEntries group onto the same Date for calendar and analytics.
 _Avoid_: Day, logged date, local date
+
+**EntrySelection**:
+What a client is asking to read, as one value: the account, and optionally a range of instants, a Mood, an Activity, and an instant to return only what changed after. Combining narrowings is the point — every filter is the same kind of thing, so a page of one mood within one month is a selection rather than an endpoint nobody wrote. Counting and reading use the same selection, so a total can never describe a different question from the page beneath it.
+_Avoid_: Filter, criteria, search, query params
+
+**Page**:
+One window onto an EntrySelection, with the total for the whole selection beside it. The total is what makes paging honest: without it a client can only fetch until a short page arrives and hope. A page larger than the server serves cannot be constructed, so an unbounded read is not something a client can ask for by accident.
+_Avoid_: Batch, chunk, result set, slice
 
 **DateSpan**:
 A run of consecutive Dates, inclusive of both ends. What day-keyed data is read by, and distinct from the range of instants that MoodEntries are deleted by — a span of days has no time of day, so nothing about it depends on an offset.
@@ -105,6 +121,10 @@ _Avoid_: Weather code, description, icon, summary
 **Location**:
 The coordinates a MoodEntry was logged at. Supplied by the client, optional, and the prerequisite for Weather.
 _Avoid_: GPS, position, place, geo
+
+**MediaRef**:
+A photo or voice memo named by its kind together with its id. What ownership of a blob is recorded against, so one record serves both kinds and two objects sharing a uuid across kinds stay distinct. The blob store itself knows nothing of Users; who may delete a photo is a fact held beside it, never inferred from whichever MoodEntry happens to wear it.
+_Avoid_: Attachment id, file, asset, blob key
 
 **CycleStart**:
 A Date on which a User's menstrual period began. Recorded once per cycle, never per day. Cycle day for any Date is derived from the most recent preceding CycleStart and is never stored — correcting a CycleStart therefore corrects every Date that depends on it. Recorded only while the User has cycle tracking on; turning it off hides every derived cycle day without forgetting what was recorded.

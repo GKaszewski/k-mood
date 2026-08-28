@@ -44,6 +44,7 @@ async fn a_blob_that_refuses_to_go_does_not_stop_the_entry_being_edited() {
         .unwrap();
 
     let deps = update_entry::Deps {
+        activities: store.clone(),
         command: store.clone(),
         dimensions: vec![photos.clone() as Arc<dyn EntryDimensionPort>],
         query: store.clone(),
@@ -54,11 +55,11 @@ async fn a_blob_that_refuses_to_go_does_not_stop_the_entry_being_edited() {
     let edited = update_entry::execute(
         UpdateEntryCommand {
             entry_id: entry.id().clone(),
-            mood: Mood::Rad,
+            mood: Some(Mood::Rad),
             logged_at: Some(
                 chrono::DateTime::parse_from_rfc3339("2026-08-20T12:00:00+02:00").unwrap(),
             ),
-            dimensions: Vec::new(),
+            dimensions: Some(Vec::new()),
         },
         owner,
         &deps,
@@ -134,6 +135,7 @@ async fn a_token_store_that_cannot_record_a_use_still_authenticates() {
         UserId::generate(),
         ProviderName::new("iphone-shortcuts").unwrap(),
         secrets.digest(&secret),
+        domain::api_token::TokenScopes::new([domain::api_token::TokenScope::WriteMetrics]).unwrap(),
     );
 
     let deps = authenticate_api_token::Deps {
@@ -142,7 +144,12 @@ async fn a_token_store_that_cannot_record_a_use_still_authenticates() {
         secrets,
     };
 
-    let authenticated = authenticate_api_token::execute(&secret, &deps).await;
+    let authenticated = authenticate_api_token::execute(
+        &secret,
+        domain::api_token::TokenScope::WriteMetrics,
+        &deps,
+    )
+    .await;
 
     assert!(
         authenticated.is_ok(),
@@ -160,6 +167,7 @@ async fn a_digest_that_matches_nothing_is_still_refused() {
         UserId::generate(),
         ProviderName::new("iphone-shortcuts").unwrap(),
         TokenDigest::from_persistence("some other digest".into()),
+        domain::api_token::TokenScopes::new([domain::api_token::TokenScope::WriteMetrics]).unwrap(),
     );
 
     let deps = authenticate_api_token::Deps {
@@ -169,7 +177,9 @@ async fn a_digest_that_matches_nothing_is_still_refused() {
     };
 
     assert!(
-        authenticate_api_token::execute(&real, &deps).await.is_err(),
+        authenticate_api_token::execute(&real, domain::api_token::TokenScope::WriteMetrics, &deps)
+            .await
+            .is_err(),
         "degrading on a write failure must not degrade into accepting anything"
     );
 }

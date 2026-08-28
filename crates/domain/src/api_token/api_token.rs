@@ -3,14 +3,14 @@ use chrono::{DateTime, Utc};
 use crate::provider::ProviderName;
 use crate::user::UserId;
 
-use super::{ApiTokenId, TokenDigest, TokenScope};
+use super::{ApiTokenId, TokenDigest, TokenScope, TokenScopes};
 
 pub struct ApiTokenData {
     pub id: ApiTokenId,
     pub user_id: UserId,
     pub name: ProviderName,
     pub digest: TokenDigest,
-    pub scope: TokenScope,
+    pub scopes: TokenScopes,
     pub created_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
 }
@@ -21,19 +21,24 @@ pub struct ApiToken {
     user_id: UserId,
     name: ProviderName,
     digest: TokenDigest,
-    scope: TokenScope,
+    scopes: TokenScopes,
     created_at: DateTime<Utc>,
     last_used_at: Option<DateTime<Utc>>,
 }
 
 impl ApiToken {
-    pub fn new(user_id: UserId, name: ProviderName, digest: TokenDigest) -> Self {
+    pub fn new(
+        user_id: UserId,
+        name: ProviderName,
+        digest: TokenDigest,
+        scopes: TokenScopes,
+    ) -> Self {
         Self {
             id: ApiTokenId::generate(),
             user_id,
             name,
             digest,
-            scope: TokenScope::WriteMetrics,
+            scopes,
             created_at: Utc::now(),
             last_used_at: None,
         }
@@ -45,7 +50,7 @@ impl ApiToken {
             user_id: data.user_id,
             name: data.name,
             digest: data.digest,
-            scope: data.scope,
+            scopes: data.scopes,
             created_at: data.created_at,
             last_used_at: data.last_used_at,
         }
@@ -69,8 +74,12 @@ impl ApiToken {
         &self.digest
     }
 
-    pub fn scope(&self) -> TokenScope {
-        self.scope
+    pub fn scopes(&self) -> &TokenScopes {
+        &self.scopes
+    }
+
+    pub fn allows(&self, scope: TokenScope) -> bool {
+        self.scopes.allows(scope)
     }
 
     pub fn created_at(&self) -> &DateTime<Utc> {

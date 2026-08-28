@@ -49,47 +49,55 @@ const AuthActivitiesRoute = AuthActivitiesRouteImport.update({
   id: '/activities',
   path: '/activities',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/activities.lazy').then((d) => d.Route),
+)
 const AuthAddRoute = AuthAddRouteImport.update({
   id: '/add',
   path: '/add',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/add.lazy').then((d) => d.Route))
 const AuthCalendarRoute = AuthCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/calendar.lazy').then((d) => d.Route),
+)
 const AuthDiaryRoute = AuthDiaryRouteImport.update({
   id: '/diary',
   path: '/diary',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/diary.lazy').then((d) => d.Route))
 const AuthExportRoute = AuthExportRouteImport.update({
   id: '/export',
   path: '/export',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/export.lazy').then((d) => d.Route))
 const AuthImportRoute = AuthImportRouteImport.update({
   id: '/import',
   path: '/import',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/import.lazy').then((d) => d.Route))
 const AuthMetricsRoute = AuthMetricsRouteImport.update({
   id: '/metrics',
   path: '/metrics',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/metrics.lazy').then((d) => d.Route))
 const AuthRemindersRoute = AuthRemindersRouteImport.update({
   id: '/reminders',
   path: '/reminders',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/reminders.lazy').then((d) => d.Route),
+)
 const AuthSettingsRoute = AuthSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/settings.lazy').then((d) => d.Route),
+)
 const AuthStatsRoute = AuthStatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -99,12 +107,16 @@ const AuthEditIdRoute = AuthEditIdRouteImport.update({
   id: '/edit/$id',
   path: '/edit/$id',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/edit.$id.lazy').then((d) => d.Route),
+)
 const AuthEntryIdRoute = AuthEntryIdRouteImport.update({
   id: '/entry/$id',
   path: '/entry/$id',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/entry.$id.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthIndexRoute

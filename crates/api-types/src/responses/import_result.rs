@@ -1,0 +1,7 @@
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResultResponse {
+    pub imported: u64,
+    pub skipped: u64,
+    pub errors: Vec<String>,
+}

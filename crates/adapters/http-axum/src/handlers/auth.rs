@@ -3,20 +3,23 @@ use axum::extract::State;
 use axum::http::StatusCode;
 
 use api_types::requests::LoginRequest;
-use api_types::responses::UserResponse;
+use api_types::responses::{ErrorResponse, RefreshedResponse, SignedInResponse, UserResponse};
 use application::auth::use_cases::{login, logout, refresh};
 
 use crate::errors::ApiError;
+use crate::extractors::Body;
 use crate::state::AppState;
 
 #[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth",
     request_body = LoginRequest,
-    responses((status = 200, description = "Login successful"))
+    responses((status = 200, body = SignedInResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_login(
     State(state): State<AppState>,
-    Json(body): Json<LoginRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+    Body(body): Body<LoginRequest>,
+) -> Result<Json<SignedInResponse>, ApiError> {
     let cmd = body.into_command();
     let deps = login::Deps {
         user_query: state.user_query,
@@ -27,14 +30,13 @@ pub async fn handle_login(
     };
 
     let result = login::execute(cmd, &deps).await?;
-    let user_response = UserResponse::from(result.user);
 
-    Ok(Json(serde_json::json!({
-        "accessToken": result.access_token.token(),
-        "refreshToken": result.refresh_token,
-        "expiresAt": result.access_token.expires_at(),
-        "user": user_response,
-    })))
+    Ok(Json(SignedInResponse {
+        access_token: result.access_token.token().to_string(),
+        refresh_token: result.refresh_token,
+        expires_at: *result.access_token.expires_at(),
+        user: UserResponse::from(result.user),
+    }))
 }
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -45,12 +47,14 @@ pub struct RefreshRequest {
 
 #[utoipa::path(post, path = "/api/v1/auth/refresh", tag = "auth",
     request_body = RefreshRequest,
-    responses((status = 200, description = "Token refreshed"))
+    responses((status = 200, body = RefreshedResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_refresh(
     State(state): State<AppState>,
-    Json(body): Json<RefreshRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+    Body(body): Body<RefreshRequest>,
+) -> Result<Json<RefreshedResponse>, ApiError> {
     let deps = refresh::Deps {
         auth_service: state.auth_service,
         refresh_session_command: state.refresh_session_command,
@@ -60,11 +64,11 @@ pub async fn handle_refresh(
 
     let result = refresh::execute(&body.refresh_token, &deps).await?;
 
-    Ok(Json(serde_json::json!({
-        "accessToken": result.access_token.token(),
-        "refreshToken": result.refresh_token,
-        "expiresAt": result.access_token.expires_at(),
-    })))
+    Ok(Json(RefreshedResponse {
+        access_token: result.access_token.token().to_string(),
+        refresh_token: result.refresh_token,
+        expires_at: *result.access_token.expires_at(),
+    }))
 }
 
 #[derive(serde::Deserialize, utoipa::ToSchema)]
@@ -75,11 +79,13 @@ pub struct LogoutRequest {
 
 #[utoipa::path(post, path = "/api/v1/auth/logout", tag = "auth",
     request_body = LogoutRequest,
-    responses((status = 204, description = "Logged out"))
+    responses((status = 204, description = "Logged out"),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_logout(
     State(state): State<AppState>,
-    Json(body): Json<LogoutRequest>,
+    Body(body): Body<LogoutRequest>,
 ) -> Result<StatusCode, ApiError> {
     let deps = logout::Deps {
         refresh_session_command: state.refresh_session_command,

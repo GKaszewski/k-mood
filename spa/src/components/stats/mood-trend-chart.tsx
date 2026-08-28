@@ -1,4 +1,4 @@
-import { format, startOfWeek, startOfMonth } from "date-fns"
+import { useMemo } from "react"
 import {
   Area,
   AreaChart,
@@ -9,24 +9,35 @@ import {
   YAxis,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getMoodEmoji } from "@/lib/mood"
+import { BEST_MOOD, MIDDLE_MOOD, WORST_MOOD, getMoodEmoji } from "@/lib/mood"
+import { aggregateTrend, bucketFor } from "@/lib/trend-buckets"
+import type { TrendBar } from "@/lib/trend-buckets"
+import type { TrendPoint } from "@/hooks/use-trend"
+import type { Period } from "@/lib/period"
+
+const GRADIENT_ID = "moodTrendGradient"
+const MAX_POINTS_WITH_DOTS = 60
+const AXIS_PADDING = 0.5
 
 interface MoodTrendChartProps {
-  entries: Array<{ loggedAt: string; mood: number }>
-  period?: "week" | "month" | "year" | "all"
+  points: TrendPoint[]
+  period: Period
   title?: string
 }
 
 export function MoodTrendChart({
-  entries,
-  period = "month",
+  points,
+  period,
   title = "Mood over time",
 }: MoodTrendChartProps) {
-  const data = aggregate(entries, period)
+  const bars = useMemo(
+    () => aggregateTrend(points, bucketFor(period, points.length)),
+    [points, period]
+  )
 
-  if (data.length === 0) return null
+  if (bars.length === 0) return null
 
-  const showDots = data.length <= 60
+  const showDots = bars.length <= MAX_POINTS_WITH_DOTS
 
   return (
     <Card>
@@ -36,79 +47,71 @@ export function MoodTrendChart({
       <CardContent>
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart
-            data={data}
+            data={bars}
             margin={{ top: 5, right: 5, bottom: 0, left: -10 }}
           >
             <defs>
-              <linearGradient id="moodGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.4} />
-                <stop offset="50%" stopColor="#eab308" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+              <linearGradient id={GRADIENT_ID} x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="0%"
+                  stopColor={BEST_MOOD.swatch}
+                  stopOpacity={0.4}
+                />
+                <stop
+                  offset="50%"
+                  stopColor={MIDDLE_MOOD.swatch}
+                  stopOpacity={0.2}
+                />
+                <stop
+                  offset="100%"
+                  stopColor={WORST_MOOD.swatch}
+                  stopOpacity={0.05}
+                />
               </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
+              stroke="var(--border)"
               vertical={false}
             />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11, fill: "white" }}
+              tick={{ fontSize: 11, fill: "var(--foreground)" }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
               minTickGap={50}
             />
             <YAxis
-              domain={[0.5, 5.5]}
+              domain={[
+                WORST_MOOD.value - AXIS_PADDING,
+                BEST_MOOD.value + AXIS_PADDING,
+              ]}
               ticks={[1, 2, 3, 4, 5]}
               tick={{ fontSize: 14 }}
-              tickFormatter={(v) => getMoodEmoji(v)}
+              tickFormatter={getMoodEmoji}
               tickLine={false}
               axisLine={false}
               width={32}
             />
-            <Tooltip
-              content={(props) => {
-                const { active, payload } = props as {
-                  active?: boolean
-                  payload?: ReadonlyArray<{ payload: DataPoint }>
-                }
-
-                if (!active || !payload?.length) return null
-
-                const d = payload[0].payload
-                const mood = Math.round(d.avg)
-                return (
-                  <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-md">
-                    <p className="font-medium">{d.tooltip}</p>
-                    <p>
-                      {getMoodEmoji(mood)} {d.avg.toFixed(1)} avg
-                      <span className="ml-1 text-muted-foreground">
-                        ({d.count} {d.count === 1 ? "entry" : "entries"})
-                      </span>
-                    </p>
-                  </div>
-                )
-              }}
-            />
+            <Tooltip content={<TrendTooltip />} />
             <Area
               type="natural"
-              dataKey="avg"
-              stroke="#22c55e"
-              fill="url(#moodGradient)"
+              dataKey="average"
+              stroke={BEST_MOOD.swatch}
+              fill={`url(#${GRADIENT_ID})`}
               strokeWidth={2}
               dot={
                 showDots
                   ? {
                       r: 2.5,
-                      fill: "hsl(var(--background))",
-                      stroke: "#22c55e",
+                      fill: "var(--popover)",
+                      stroke: BEST_MOOD.swatch,
                       strokeWidth: 1.5,
                     }
                   : false
               }
-              activeDot={{ r: 4, fill: "#22c55e" }}
+              activeDot={{ r: 4, fill: BEST_MOOD.swatch }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -117,67 +120,25 @@ export function MoodTrendChart({
   )
 }
 
-interface DataPoint {
-  label: string
-  tooltip: string
-  avg: number
-  count: number
-}
-
-function aggregate(
-  entries: Array<{ loggedAt: string; mood: number }>,
-  period: string
-): DataPoint[] {
-  if (period === "year" || period === "all") {
-    return entries.length > 365
-      ? aggregateBy(entries, "month")
-      : aggregateBy(entries, "week")
-  }
-  return aggregateBy(entries, "day")
-}
-
-function aggregateBy(
-  entries: Array<{ loggedAt: string; mood: number }>,
-  bucket: "day" | "week" | "month"
-): DataPoint[] {
-  const groups = new Map<
-    string,
-    { moods: number[]; label: string; tooltip: string }
-  >()
-
-  for (const e of entries) {
-    const d = new Date(e.loggedAt)
-    let key: string
-    let label: string
-    let tooltip: string
-
-    if (bucket === "month") {
-      key = format(startOfMonth(d), "yyyy-MM")
-      label = format(d, "MMM yyyy")
-      tooltip = format(d, "MMMM yyyy")
-    } else if (bucket === "week") {
-      const week = startOfWeek(d)
-      key = format(week, "yyyy-MM-dd")
-      label = format(week, "MMM d")
-      tooltip = `Week of ${format(week, "MMM d, yyyy")}`
-    } else {
-      key = format(d, "yyyy-MM-dd")
-      label = format(d, "MMM d")
-      tooltip = format(d, "EEE, MMM d")
-    }
-
-    if (!groups.has(key)) {
-      groups.set(key, { moods: [], label, tooltip })
-    }
-    groups.get(key)!.moods.push(e.mood)
+function TrendTooltip(props: unknown) {
+  const { active, payload } = props as {
+    active?: boolean
+    payload?: ReadonlyArray<{ payload: TrendBar }>
   }
 
-  return Array.from(groups.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([_, { moods, label, tooltip }]) => ({
-      label,
-      tooltip,
-      avg: moods.reduce((s, m) => s + m, 0) / moods.length,
-      count: moods.length,
-    }))
+  if (!active || !payload?.length) return null
+
+  const bar = payload[0].payload
+
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">
+      <p className="font-medium">{bar.tooltip}</p>
+      <p>
+        {getMoodEmoji(Math.round(bar.average))} {bar.average.toFixed(1)} avg
+        <span className="ml-1 text-muted-foreground">
+          ({bar.entryCount} {bar.entryCount === 1 ? "entry" : "entries"})
+        </span>
+      </p>
+    </div>
+  )
 }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use domain::activity::ActivityId;
 use domain::entry::Mood;
-use domain::ports::{ActivityCommandPort, MoodEntryCommandPort, MoodEntryQueryPort};
+use domain::ports::{ActivityCommandPort, MoodEntryCommandPort};
 use domain::testing::{InMemoryStore, test_activity, test_entry, test_user};
 
 use application::entry::use_cases::replace_activity;
@@ -29,8 +29,8 @@ async fn replaces_activity_on_entries() {
         .await
         .unwrap();
 
-    let now_tagged_new = store.find_by_activity(user.id(), new.id()).await.unwrap();
-    let still_tagged_old = store.find_by_activity(user.id(), old.id()).await.unwrap();
+    let now_tagged_new = tagged_with(&store, &user, new.id()).await;
+    let still_tagged_old = tagged_with(&store, &user, old.id()).await;
 
     assert_eq!(now_tagged_new.len(), 1);
     assert!(still_tagged_old.is_empty());
@@ -79,4 +79,18 @@ async fn rejects_target_owned_by_different_user() {
     )
     .await;
     assert!(result.is_err());
+}
+
+async fn tagged_with(
+    store: &Arc<InMemoryStore>,
+    user: &domain::user::User,
+    activity_id: &domain::activity::ActivityId,
+) -> Vec<domain::entry::MoodEntry> {
+    let selection = domain::entry::EntrySelection::everything_of(user.id().clone())
+        .tagged_with(Some(activity_id.clone()));
+    let page = domain::entry::Pagination::new(500, 0, 500).unwrap();
+
+    domain::ports::MoodEntryQueryPort::select(store.as_ref(), &selection, page)
+        .await
+        .unwrap()
 }

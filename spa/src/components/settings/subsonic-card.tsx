@@ -1,8 +1,15 @@
 import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/toast"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import {
   useConnectProvider,
   useDisconnectProvider,
@@ -37,58 +44,74 @@ export function SubsonicCard() {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">Music</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {connected ? (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
+    <CollapsibleCard
+      title="Music"
+      description="Connect your own Subsonic server to fill in what you were listening to."
+      summary={
+        <Badge variant={connected ? "secondary" : "outline"}>
+          {connected ? "connected" : "not connected"}
+        </Badge>
+      }
+    >
+      {connected ? (
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <FieldDescription>
               Subsonic is connected. Your password is stored encrypted and is
               never shown again.
-            </p>
+            </FieldDescription>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => disconnect.mutate()}
               disabled={disconnect.isPending}
             >
               Disconnect
             </Button>
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Connect your own Subsonic server to fill in what you were
-              listening to.
-            </p>
+          </Field>
+        </FieldGroup>
+      ) : (
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="subsonic-url">Address</FieldLabel>
             <Input
+              id="subsonic-url"
               placeholder="https://music.example.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="subsonic-username">Username</FieldLabel>
             <Input
-              placeholder="Username"
+              id="subsonic-username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="off"
             />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="subsonic-password">Password</FieldLabel>
             <Input
+              id="subsonic-password"
               type="password"
-              placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="off"
             />
+            <FieldDescription>
+              Stored encrypted, and never shown again once saved.
+            </FieldDescription>
+          </Field>
+          <Field orientation="horizontal">
             <Button
-              size="sm"
               onClick={submit}
               disabled={connect.isPending || !url || !username || !password}
             >
               {connect.isPending ? "Connecting…" : "Connect"}
             </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </Field>
+        </FieldGroup>
+      )}
+    </CollapsibleCard>
   )
 }

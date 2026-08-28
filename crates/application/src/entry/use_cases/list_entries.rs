@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use domain::entry::MoodEntry;
+use domain::entry::{MoodEntry, Page};
 use domain::ports::MoodEntryQueryPort;
 
 use crate::errors::ApplicationError;
@@ -15,19 +15,9 @@ pub struct Deps {
 pub async fn execute(
     query: ListEntriesQuery,
     deps: &Deps,
-) -> Result<Vec<MoodEntry>, ApplicationError> {
-    let entries = match query.range {
-        Some(range) => {
-            deps.query
-                .find_by_date_range(&query.user_id, &range)
-                .await?
-        }
-        None => {
-            deps.query
-                .find_by_user(&query.user_id, query.limit, query.offset)
-                .await?
-        }
-    };
+) -> Result<Page<MoodEntry>, ApplicationError> {
+    let total = deps.query.count(&query.selection).await?;
+    let entries = deps.query.select(&query.selection, query.page).await?;
 
-    Ok(entries)
+    Ok(Page::new(entries, total, query.page))
 }

@@ -1,17 +1,19 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Duration as StdDuration;
+
+use chrono::Duration;
 
 use application::job::use_cases::{run_due_jobs, sweep_recording_backlog, sweep_weather_backlog};
 use application::reminder::use_cases::process_due_reminders;
 use config::WorkerConfig;
 use domain::ports::{
     EntryDimensionPort, JobQueueCommandPort, RecordingBackfillQueryPort, RecordingLookupPort,
-    RefreshSessionCommandPort, ReminderQueryPort, ReminderSenderPort, UserQueryPort,
-    WeatherBacklogQueryPort, WeatherLookupPort,
+    RefreshSessionCommandPort, ReminderCommandPort, ReminderQueryPort, ReminderSenderPort,
+    UserQueryPort, WeatherBacklogQueryPort, WeatherLookupPort,
 };
 
 pub fn every(seconds: u64) -> tokio::time::Interval {
-    let mut interval = tokio::time::interval(Duration::from_secs(seconds.max(1)));
+    let mut interval = tokio::time::interval(StdDuration::from_secs(seconds.max(1)));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     interval
@@ -106,14 +108,17 @@ pub async fn sweep_for_work(
 
 pub async fn send_due_reminders(
     reminder_query: Arc<dyn ReminderQueryPort>,
+    reminder_command: Arc<dyn ReminderCommandPort>,
     user_query: Arc<dyn UserQueryPort>,
     sender: Arc<dyn ReminderSenderPort>,
     worker: WorkerConfig,
 ) {
     let deps = process_due_reminders::Deps {
         reminder_query,
+        reminder_command,
         user_query,
         sender,
+        grace: Duration::minutes(worker.reminder_grace_minutes),
     };
 
     let mut ticks = every(worker.reminder_seconds);

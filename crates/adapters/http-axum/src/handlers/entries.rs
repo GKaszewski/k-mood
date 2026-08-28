@@ -1,26 +1,25 @@
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 
+use api_types::params::{DateRangeParams, ListEntriesParams};
 use api_types::requests::{
-    CreateEntryRequest, DateRangeParams, ListEntriesParams, ReplaceActivityRequest,
-    UpdateEntryRequest,
+    CreateEntriesRequest, CreateEntryRequest, ReplaceActivityRequest, UpdateEntryRequest,
 };
 use api_types::responses::{
-    BulkActionResponse, CalendarDayResponse, EntryResponse, MoodStatsResponse,
+    BulkActionResponse, CalendarDayResponse, EntryPageResponse, EntryResponse, ErrorResponse,
+    MoodStatsResponse,
 };
 use application::entry::composition::EntryComposer;
-use application::entry::queries::{FilterByActivityQuery, FilterByMoodQuery, MoodStatsQuery};
+use application::entry::queries::MoodStatsQuery;
 use application::entry::use_cases::{
-    create_entry, delete_entries_by_date_range, delete_entry, filter_by_activity, filter_by_mood,
-    get_calendar, get_entry, get_mood_stats, list_entries, replace_activity, update_entry,
+    create_entries, create_entry, delete_entries_by_date_range, delete_entry, get_calendar,
+    get_entry, get_mood_stats, list_entries, replace_activity, update_entry,
 };
-use domain::activity::ActivityId;
-use domain::entry::MoodEntry;
-use domain::entry::{Mood, MoodEntryId};
+use domain::entry::{MoodEntry, MoodEntryId, Page};
 
 use crate::errors::ApiError;
-use crate::extractors::{AuthenticatedUser, PathId};
+use crate::extractors::{Body, JournalReader, JournalWriter, Params, PathId};
 use crate::state::AppState;
 
 async fn compose(
@@ -29,6 +28,24 @@ async fn compose(
 ) -> Result<Vec<EntryResponse>, ApiError> {
     let composed = EntryComposer::new(dimensions).compose(entries).await?;
     Ok(composed.into_iter().map(EntryResponse::from).collect())
+}
+
+async fn composed_page(
+    dimensions: Vec<std::sync::Arc<dyn domain::ports::EntryDimensionPort>>,
+    page: Page<MoodEntry>,
+) -> Result<EntryPageResponse, ApiError> {
+    let total = page.total();
+    let limit = page.limit();
+    let offset = page.offset();
+    let has_more = page.more_after_this();
+
+    Ok(EntryPageResponse {
+        items: compose(dimensions, page.into_items()).await?,
+        total,
+        limit,
+        offset,
+        has_more,
+    })
 }
 
 async fn compose_one(
@@ -41,16 +58,21 @@ async fn compose_one(
 
 #[utoipa::path(post, path = "/api/v1/entries", tag = "entries", security(("bearer" = [])),
     request_body = CreateEntryRequest,
-    responses((status = 201, body = EntryResponse))
+    responses((status = 201, body = EntryResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_create(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Json(body): Json<CreateEntryRequest>,
+    JournalWriter(user_id): JournalWriter,
+    Body(body): Body<CreateEntryRequest>,
 ) -> Result<(StatusCode, Json<EntryResponse>), ApiError> {
     let cmd = body.into_command(user_id, &state.entry_config)?;
     let dimensions = state.dimensions.clone();
     let deps = create_entry::Deps {
+        activities: state.activity_query.clone(),
         entries: state.entry_command,
         dimensions: state.dimensions.clone(),
         events: state.event_publisher,
@@ -62,13 +84,55 @@ pub async fn handle_create(
     ))
 }
 
+#[utoipa::path(post, path = "/api/v1/entries/bulk", tag = "entries", security(("bearer" = [])),
+    description = "Creates many entries in one request, for a client syncing what it collected \
+                   while offline. Either every entry is written or none is: one activity the \
+                   account does not own refuses the whole batch.",
+    request_body = CreateEntriesRequest,
+    responses((status = 201, body = Vec<EntryResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
+)]
+pub async fn handle_create_many(
+    State(state): State<AppState>,
+    JournalWriter(user_id): JournalWriter,
+    Body(body): Body<CreateEntriesRequest>,
+) -> Result<(StatusCode, Json<Vec<EntryResponse>>), ApiError> {
+    let wanted = body
+        .entries
+        .into_iter()
+        .map(|one| one.into_command(user_id.clone(), &state.entry_config))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let dimensions = state.dimensions.clone();
+    let deps = create_entries::Deps {
+        entries: state.entry_command,
+        dimensions: state.dimensions.clone(),
+        activities: state.activity_query.clone(),
+        events: state.event_publisher,
+    };
+
+    let created = create_entries::execute(user_id, wanted, &deps).await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(compose(dimensions, created).await?),
+    ))
+}
+
 #[utoipa::path(get, path = "/api/v1/entries/{id}", tag = "entries", security(("bearer" = [])),
     params(("id" = String, Path, description = "Entry ID")),
-    responses((status = 200, body = EntryResponse))
+    responses((status = 200, body = EntryResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_get(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalReader(user_id): JournalReader,
     PathId(entry_id): PathId<MoodEntryId>,
 ) -> Result<Json<EntryResponse>, ApiError> {
     let dimensions = state.dimensions.clone();
@@ -81,36 +145,52 @@ pub async fn handle_get(
 
 #[utoipa::path(get, path = "/api/v1/entries", tag = "entries", security(("bearer" = [])),
     params(ListEntriesParams),
-    responses((status = 200, body = Vec<EntryResponse>))
+    description = "One page of entries, newest first, narrowed by any combination of the \
+                   parameters. `total` counts everything the selection matches, not the page, \
+                   so a client can page with confidence. `updatedSince` returns only entries \
+                   changed after that instant, which is what a polling client should use rather \
+                   than refetching the journal.",
+    responses((status = 200, body = EntryPageResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_list(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<ListEntriesParams>,
-) -> Result<Json<Vec<EntryResponse>>, ApiError> {
-    let query = params.into_query(user_id)?;
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<ListEntriesParams>,
+) -> Result<Json<EntryPageResponse>, ApiError> {
+    let query = params.into_query(user_id, &state.entry_config)?;
     let dimensions = state.dimensions.clone();
     let deps = list_entries::Deps {
         query: state.entry_query,
     };
-    let entries = list_entries::execute(query, &deps).await?;
-    Ok(Json(compose(dimensions, entries).await?))
+
+    let page = list_entries::execute(query, &deps).await?;
+
+    Ok(Json(composed_page(dimensions, page).await?))
 }
 
 #[utoipa::path(patch, path = "/api/v1/entries/{id}", tag = "entries", security(("bearer" = [])),
     params(("id" = String, Path, description = "Entry ID")),
     request_body = UpdateEntryRequest,
-    responses((status = 200, body = EntryResponse))
+    responses((status = 200, body = EntryResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_update(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalWriter(user_id): JournalWriter,
     PathId(entry_id): PathId<MoodEntryId>,
-    Json(body): Json<UpdateEntryRequest>,
+    Body(body): Body<UpdateEntryRequest>,
 ) -> Result<Json<EntryResponse>, ApiError> {
     let cmd = body.into_command(entry_id, &state.entry_config)?;
     let dimensions = state.dimensions.clone();
     let deps = update_entry::Deps {
+        activities: state.activity_query.clone(),
         command: state.entry_command,
         dimensions: state.dimensions.clone(),
         query: state.entry_query,
@@ -123,11 +203,15 @@ pub async fn handle_update(
 
 #[utoipa::path(delete, path = "/api/v1/entries/{id}", tag = "entries", security(("bearer" = [])),
     params(("id" = String, Path, description = "Entry ID")),
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_delete(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalWriter(user_id): JournalWriter,
     PathId(entry_id): PathId<MoodEntryId>,
 ) -> Result<StatusCode, ApiError> {
     let deps = delete_entry::Deps {
@@ -142,53 +226,65 @@ pub async fn handle_delete(
 }
 
 #[utoipa::path(get, path = "/api/v1/entries/filter/mood/{mood}", tag = "entries", security(("bearer" = [])),
-    params(("mood" = u8, Path, description = "Mood value 1-5")),
-    responses((status = 200, body = Vec<EntryResponse>))
+    description = "A page of entries of one mood. The same selection is available on \
+                   GET /entries as the `mood` parameter, alongside every other narrowing.",
+    params(("mood" = u8, Path, description = "Mood value 1-5"), ListEntriesParams),
+    responses((status = 200, body = EntryPageResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_filter_by_mood(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    reader: JournalReader,
     Path(mood): Path<u8>,
-) -> Result<Json<Vec<EntryResponse>>, ApiError> {
-    let mood = Mood::try_from(mood)?;
-    let query = FilterByMoodQuery { user_id, mood };
-    let dimensions = state.dimensions.clone();
-    let deps = filter_by_mood::Deps {
-        query: state.entry_query,
+    Params(params): Params<ListEntriesParams>,
+) -> Result<Json<EntryPageResponse>, ApiError> {
+    let narrowed = ListEntriesParams {
+        mood: Some(mood),
+        ..params
     };
-    let entries = filter_by_mood::execute(query, &deps).await?;
-    Ok(Json(compose(dimensions, entries).await?))
+
+    handle_list(State(state), reader, Params(narrowed)).await
 }
 
 #[utoipa::path(get, path = "/api/v1/entries/filter/activity/{id}", tag = "entries", security(("bearer" = [])),
-    params(("id" = String, Path, description = "Activity ID")),
-    responses((status = 200, body = Vec<EntryResponse>))
+    description = "A page of entries tagged with one activity. The same selection is available \
+                   on GET /entries as the `activity` parameter.",
+    params(("id" = String, Path, description = "Activity ID"), ListEntriesParams),
+    responses((status = 200, body = EntryPageResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_filter_by_activity(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    PathId(activity_id): PathId<ActivityId>,
-) -> Result<Json<Vec<EntryResponse>>, ApiError> {
-    let query = FilterByActivityQuery {
-        user_id,
-        activity_id,
+    reader: JournalReader,
+    Path(activity_id): Path<String>,
+    Params(params): Params<ListEntriesParams>,
+) -> Result<Json<EntryPageResponse>, ApiError> {
+    let narrowed = ListEntriesParams {
+        activity: Some(activity_id),
+        ..params
     };
-    let dimensions = state.dimensions.clone();
-    let deps = filter_by_activity::Deps {
-        query: state.entry_query,
-    };
-    let entries = filter_by_activity::execute(query, &deps).await?;
-    Ok(Json(compose(dimensions, entries).await?))
+
+    handle_list(State(state), reader, Params(narrowed)).await
 }
 
 #[utoipa::path(get, path = "/api/v1/entries/stats", tag = "entries", security(("bearer" = [])),
     params(ListEntriesParams),
-    responses((status = 200, body = MoodStatsResponse))
+    responses((status = 200, body = MoodStatsResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_stats(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<ListEntriesParams>,
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<ListEntriesParams>,
 ) -> Result<Json<MoodStatsResponse>, ApiError> {
     let range = match (params.from, params.to) {
         (Some(from), Some(to)) => {
@@ -209,12 +305,16 @@ pub async fn handle_stats(
 
 #[utoipa::path(get, path = "/api/v1/entries/calendar", tag = "entries", security(("bearer" = [])),
     params(DateRangeParams),
-    responses((status = 200, body = Vec<CalendarDayResponse>))
+    responses((status = 200, body = Vec<CalendarDayResponse>),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_calendar(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<DateRangeParams>,
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<DateRangeParams>,
 ) -> Result<Json<Vec<CalendarDayResponse>>, ApiError> {
     let range = params.into_date_range()?;
     let deps = get_calendar::Deps {
@@ -232,12 +332,16 @@ pub async fn handle_calendar(
 
 #[utoipa::path(delete, path = "/api/v1/entries/bulk/delete", tag = "entries", security(("bearer" = [])),
     params(DateRangeParams),
-    responses((status = 200, body = BulkActionResponse))
+    responses((status = 200, body = BulkActionResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_delete_by_date_range(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Query(params): Query<DateRangeParams>,
+    JournalWriter(user_id): JournalWriter,
+    Params(params): Params<DateRangeParams>,
 ) -> Result<Json<BulkActionResponse>, ApiError> {
     let range = params.into_date_range()?;
     let deps = delete_entries_by_date_range::Deps {
@@ -252,12 +356,16 @@ pub async fn handle_delete_by_date_range(
 
 #[utoipa::path(post, path = "/api/v1/entries/bulk/replace-activity", tag = "entries", security(("bearer" = [])),
     request_body = ReplaceActivityRequest,
-    responses((status = 200, body = BulkActionResponse))
+    responses((status = 200, body = BulkActionResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_replace_activity(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Json(body): Json<ReplaceActivityRequest>,
+    JournalWriter(user_id): JournalWriter,
+    Body(body): Body<ReplaceActivityRequest>,
 ) -> Result<Json<BulkActionResponse>, ApiError> {
     let (user_id, old_id, new_id) = body.into_parts(user_id)?;
     let deps = replace_activity::Deps {

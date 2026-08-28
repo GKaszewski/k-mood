@@ -67,13 +67,12 @@ async fn import(
 }
 
 async fn instants_of(store: &Arc<InMemoryStore>, user: &User) -> Vec<String> {
-    let mut held: Vec<String> =
-        MoodEntryQueryPort::find_by_user(store.as_ref(), user.id(), None, None)
-            .await
-            .unwrap()
-            .iter()
-            .map(|entry| entry.logged_at().to_rfc3339())
-            .collect();
+    let mut held: Vec<String> = MoodEntryQueryPort::find_all_by_user(store.as_ref(), user.id())
+        .await
+        .unwrap()
+        .iter()
+        .map(|entry| entry.logged_at().to_rfc3339())
+        .collect();
     held.sort();
 
     held
@@ -193,4 +192,74 @@ async fn importing_the_same_export_twice_does_not_duplicate_anything() {
     assert_eq!(again.imported, 0);
     assert_eq!(again.skipped, 1);
     assert_eq!(instants_of(&store, &user).await.len(), 1);
+}
+
+#[tokio::test]
+async fn re_importing_the_same_file_adds_nothing() {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in(&store, Some("Europe/Warsaw")).await;
+
+    let rows = vec![
+        ("2026-08-25".to_string(), "20:00".to_string(), 4),
+        ("2026-08-26".to_string(), "09:30".to_string(), 2),
+    ];
+
+    let first = import(&store, &user, rows.clone()).await.unwrap();
+    assert_eq!(first.imported, 2);
+
+    let again = import(&store, &user, rows).await.unwrap();
+
+    assert_eq!(again.imported, 0, "every row was already here");
+    assert_eq!(again.skipped, 2);
+    assert_eq!(
+        store.entry_count(),
+        2,
+        "re-importing must not double the history"
+    );
+}
+
+#[tokio::test]
+async fn an_entry_held_in_utc_still_matches_a_row_written_in_local_time() {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in(&store, Some("Europe/Warsaw")).await;
+
+    let eight_in_the_evening_in_warsaw =
+        chrono::DateTime::parse_from_rfc3339("2026-08-25T18:00:00+00:00").unwrap();
+    let held = domain::entry::MoodEntry::new(
+        user.id().clone(),
+        domain::entry::Mood::Good,
+        eight_in_the_evening_in_warsaw,
+    );
+    domain::ports::MoodEntryCommandPort::save(store.as_ref(), &held)
+        .await
+        .unwrap();
+
+    let outcome = import(
+        &store,
+        &user,
+        vec![("2026-08-25".to_string(), "20:00".to_string(), 4)],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        outcome.imported, 0,
+        "the same instant is the same entry whether it is held as +00:00 or +02:00"
+    );
+    assert_eq!(store.entry_count(), 1);
+}
+
+#[tokio::test]
+async fn a_row_repeated_inside_one_file_lands_once() {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in(&store, Some("Europe/Warsaw")).await;
+
+    let repeated = ("2026-08-25".to_string(), "20:00".to_string(), 4);
+    let outcome = import(&store, &user, vec![repeated.clone(), repeated])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.imported, 1);
+    assert_eq!(outcome.skipped, 1);
+    assert_eq!(store.entry_count(), 1);
 }

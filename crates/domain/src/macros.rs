@@ -48,11 +48,16 @@ macro_rules! bounded_metric {
         pub struct $name($inner);
 
         impl $name {
+            pub const MINIMUM: $inner = $min;
+            pub const MAXIMUM: $inner = $max;
+
             pub fn new(value: $inner) -> Result<Self, crate::errors::DomainError> {
-                if !($min..=$max).contains(&value) {
+                if !(Self::MINIMUM..=Self::MAXIMUM).contains(&value) {
                     return Err(crate::errors::DomainError::InvalidInput(format!(
                         concat!($label, " must be between {} and {}, got {}"),
-                        $min, $max, value
+                        Self::MINIMUM,
+                        Self::MAXIMUM,
+                        value
                     )));
                 }
 

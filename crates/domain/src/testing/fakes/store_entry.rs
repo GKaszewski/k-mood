@@ -1,5 +1,5 @@
 use crate::activity::ActivityId;
-use crate::entry::{DateRange, Mood, MoodEntry, MoodEntryId};
+use crate::entry::{DateRange, EntrySelection, MoodEntry, MoodEntryId, Pagination};
 use crate::errors::DomainError;
 use crate::user::UserId;
 
@@ -84,26 +84,28 @@ impl crate::ports::MoodEntryQueryPort for InMemoryStore {
         Ok(self.entries.read().unwrap().get(id).cloned())
     }
 
-    async fn find_by_user(
+    async fn find_all_by_user(&self, user_id: &UserId) -> Result<Vec<MoodEntry>, DomainError> {
+        Ok(self.newest_first(|entry| entry.user_id() == user_id))
+    }
+
+    async fn select(
         &self,
-        user_id: &UserId,
-        limit: Option<i64>,
-        offset: Option<i64>,
+        selection: &EntrySelection,
+        page: Pagination,
     ) -> Result<Vec<MoodEntry>, DomainError> {
-        let mut entries: Vec<_> = self
-            .entries
-            .read()
-            .unwrap()
-            .values()
-            .filter(|e| e.user_id() == user_id)
-            .cloned()
-            .collect();
+        let matching = self.newest_first(|entry| self.matches(entry, selection));
 
-        let offset = offset.unwrap_or(0) as usize;
-        let limit = limit.unwrap_or(i64::MAX) as usize;
-        entries = entries.into_iter().skip(offset).take(limit).collect();
+        Ok(matching
+            .into_iter()
+            .skip(page.offset() as usize)
+            .take(page.limit() as usize)
+            .collect())
+    }
 
-        Ok(entries)
+    async fn count(&self, selection: &EntrySelection) -> Result<u64, DomainError> {
+        Ok(self
+            .newest_first(|entry| self.matches(entry, selection))
+            .len() as u64)
     }
 
     async fn find_by_date_range(
@@ -125,41 +127,69 @@ impl crate::ports::MoodEntryQueryPort for InMemoryStore {
             .collect())
     }
 
-    async fn find_by_mood(
-        &self,
-        user_id: &UserId,
-        mood: Mood,
-    ) -> Result<Vec<MoodEntry>, DomainError> {
-        Ok(self
+    async fn count_tagged_with(&self, activity_id: &ActivityId) -> Result<u64, DomainError> {
+        let tagged = self
+            .entry_activities
+            .read()
+            .unwrap()
+            .values()
+            .filter(|ids| ids.contains(activity_id))
+            .count();
+
+        Ok(tagged as u64)
+    }
+}
+
+impl InMemoryStore {
+    fn newest_first(&self, wanted: impl Fn(&MoodEntry) -> bool) -> Vec<MoodEntry> {
+        let mut found: Vec<MoodEntry> = self
             .entries
             .read()
             .unwrap()
             .values()
-            .filter(|e| e.user_id() == user_id && e.mood() == mood)
+            .filter(|entry| wanted(entry))
             .cloned()
-            .collect())
+            .collect();
+
+        found.sort_by(|left, right| right.logged_at().cmp(left.logged_at()));
+
+        found
     }
 
-    async fn find_by_activity(
-        &self,
-        user_id: &UserId,
-        activity_id: &ActivityId,
-    ) -> Result<Vec<MoodEntry>, DomainError> {
-        Ok(self
-            .entries
-            .read()
-            .unwrap()
-            .values()
-            .filter(|e| {
-                e.user_id() == user_id
-                    && self
-                        .entry_activities
-                        .read()
-                        .unwrap()
-                        .get(e.id())
-                        .is_some_and(|ids| ids.contains(activity_id))
-            })
-            .cloned()
-            .collect())
+    fn matches(&self, entry: &MoodEntry, selection: &EntrySelection) -> bool {
+        if entry.user_id() != selection.user_id() {
+            return false;
+        }
+
+        if let Some(range) = selection.range()
+            && (entry.logged_at() < range.start() || entry.logged_at() > range.end())
+        {
+            return false;
+        }
+
+        if let Some(mood) = selection.mood()
+            && entry.mood() != mood
+        {
+            return false;
+        }
+
+        if let Some(activity_id) = selection.activity()
+            && !self
+                .entry_activities
+                .read()
+                .unwrap()
+                .get(entry.id())
+                .is_some_and(|ids| ids.contains(activity_id))
+        {
+            return false;
+        }
+
+        if let Some(since) = selection.since()
+            && *entry.updated_at() <= since
+        {
+            return false;
+        }
+
+        true
     }
 }

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use domain::activity::ActivityId;
 use domain::attachment::{PhotoId, VoiceMemoId};
 use domain::dimension::{DimensionKind, DimensionValue};
 use domain::entry::{Mood, MoodEntry};
@@ -105,11 +104,16 @@ async fn an_entry_composes_every_kind_of_dimension_it_has() {
     let store = Arc::new(domain::testing::InMemoryStore::new());
     let user = test_user("erin");
 
-    let activity_id = ActivityId::generate();
+    let activity = domain::testing::test_activity(user.id().clone(), "reading");
+    domain::ports::ActivityCommandPort::save(store.as_ref(), &activity)
+        .await
+        .unwrap();
+    let activity_id = activity.id().clone();
     let photo_id = PhotoId::generate();
     let voice_memo_id = VoiceMemoId::generate();
 
     let deps = create_entry::Deps {
+        activities: store.clone(),
         entries: store.clone(),
         dimensions: dimensions.ports(),
         events: store.clone(),

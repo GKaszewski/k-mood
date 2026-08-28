@@ -3,7 +3,8 @@ use domain::entry::{Date, DateSpan};
 use domain::metric::{DailyMetric, MetricKind, MetricValue};
 
 use crate::errors::ApiValidationError;
-use crate::requests::{DateSpanParams, MetricPayload};
+use crate::params::DateSpanParams;
+use crate::requests::MetricPayload;
 use crate::responses::DailyMetricResponse;
 
 impl From<DailyMetric> for DailyMetricResponse {

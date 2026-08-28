@@ -14,16 +14,28 @@ pub struct Deps {
 
 #[tracing::instrument(skip(deps))]
 pub async fn execute(cmd: SubscribePushCommand, deps: &Deps) -> Result<(), ApplicationError> {
-    if let Some(_existing) = deps.push_query.find_by_endpoint(&cmd.endpoint).await? {
-        tracing::debug!(
-            endpoint = cmd.endpoint,
-            "push subscription already exists, updating"
-        );
-    }
+    let known = deps.push_query.find_by_endpoint(&cmd.endpoint).await?;
 
-    let subscription = PushSubscription::new(cmd.user_id, cmd.endpoint, cmd.p256dh, cmd.auth);
+    let subscription = match known {
+        Some(mut existing) => {
+            if existing.user_id() != &cmd.user_id {
+                tracing::info!(
+                    endpoint = cmd.endpoint,
+                    from = %existing.user_id(),
+                    to = %cmd.user_id,
+                    "a device already subscribed is moving to another account"
+                );
+            }
+
+            existing.renew(cmd.user_id, cmd.p256dh, cmd.auth);
+            existing
+        }
+        None => PushSubscription::new(cmd.user_id, cmd.endpoint, cmd.p256dh, cmd.auth),
+    };
+
     deps.push_command.save(&subscription).await?;
 
     tracing::info!(user_id = %subscription.user_id(), "push subscription saved");
+
     Ok(())
 }

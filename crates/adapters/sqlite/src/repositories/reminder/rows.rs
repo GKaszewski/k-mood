@@ -16,6 +16,7 @@ pub struct ReminderRow {
     pub sunday: Option<String>,
     pub enabled: bool,
     pub created_at: String,
+    pub last_sent_at: Option<String>,
 }
 
 impl ReminderRow {
@@ -36,6 +37,7 @@ impl ReminderRow {
             schedule,
             self.enabled,
             self.created_at.parse().unwrap(),
+            self.last_sent_at.and_then(|sent| sent.parse().ok()),
         )
     }
 }

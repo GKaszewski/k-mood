@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { tokens } from "@/api/client"
+import type { MintApiTokenRequest } from "@/api/schema"
 
 const TOKENS = ["api-tokens"]
 
@@ -14,7 +15,7 @@ export function useMintApiToken() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (name: string) => tokens.mint(name),
+    mutationFn: (body: MintApiTokenRequest) => tokens.mint(body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: TOKENS }),
   })
 }

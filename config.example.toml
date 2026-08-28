@@ -18,6 +18,25 @@ max_content_length = 65536
 max_photos = 10
 max_voice_memos = 5
 max_activities_per_entry = 50
+max_entries_per_page = 200
+
+[server.rate_limit]
+# Guards the API only. The client's own static files are served outside this
+# budget — one cold load asks for a dozen or more hashed assets at once, and
+# counting those here lets a hard refresh starve the app of its own code.
+enabled = true
+# Sustained ceiling per caller. Opening the client and touching every screen
+# costs roughly 25 API calls, so this is far above any person and still caps
+# what a script can pull.
+requests_per_second = 15
+# How much can arrive at once before the ceiling applies. Covers that opening
+# flurry about twice over, and refills completely in four seconds.
+burst = 60
+# Behind a reverse proxy this MUST be true, or every caller shares one bucket
+# keyed by the proxy's address and one busy client throttles everyone. Only
+# turn it on when the proxy sets X-Forwarded-For itself and refuses to pass
+# through a client-supplied one, or the limit can be evaded by forging it.
+trust_forwarded_for = false
 
 [storage]
 data_dir = "./data"
@@ -67,6 +86,7 @@ poll_seconds = 15
 sweep_seconds = 900
 session_cleanup_seconds = 3600
 reminder_seconds = 60
+reminder_grace_minutes = 30
 jobs_per_poll = 20
 enqueued_per_sweep = 200
 most_attempts = 5

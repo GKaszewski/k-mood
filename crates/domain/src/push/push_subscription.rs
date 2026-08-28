@@ -45,6 +45,12 @@ impl PushSubscription {
         }
     }
 
+    pub fn renew(&mut self, user_id: UserId, p256dh: String, auth: String) {
+        self.user_id = user_id;
+        self.p256dh = p256dh;
+        self.auth = auth;
+    }
+
     pub fn id(&self) -> &PushSubscriptionId {
         &self.id
     }

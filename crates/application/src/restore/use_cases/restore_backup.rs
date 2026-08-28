@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use std::sync::Arc;
 
 use chrono::{NaiveTime, Weekday};
@@ -10,8 +11,9 @@ use domain::entry::{Date, Mood, MoodEntry};
 use domain::metric::{DailyMetric, MetricKind, MetricValue, Source};
 use domain::ports::{
     ActivityCommandPort, ActivityQueryPort, BackupReaderPort, CycleStartCommandPort,
-    DailyMetricCommandPort, EntryDimensionPort, MediaStoragePort, MoodEntryCommandPort,
-    ReminderCommandPort, RestorableActivity, RestorableContents, RestorableEntry, RestorableMetric,
+    DailyMetricCommandPort, EntryDimensionPort, MediaOwnershipPort, MediaStoragePort,
+    MoodEntryCommandPort, MoodEntryQueryPort, ReminderCommandPort, ReminderQueryPort,
+    RestorableActivity, RestorableContents, RestorableEntry, RestorableMedia, RestorableMetric,
     RestorableReminder, UserPreferencesCommandPort, UserPreferencesQueryPort,
 };
 use domain::provider::ProviderName;
@@ -19,6 +21,7 @@ use domain::reminder::{DaySchedule, Reminder};
 use domain::user::UserId;
 
 use crate::errors::ApplicationError;
+use crate::import::already_here::AlreadyHere;
 use crate::restore::commands::RestoreBackupCommand;
 use crate::user::preferences::preferences_of;
 
@@ -32,6 +35,9 @@ const WEEK: [Weekday; 7] = [
     Weekday::Sun,
 ];
 
+const PHOTO_FALLBACK_TYPE: &str = "image/jpeg";
+const VOICE_MEMO_FALLBACK_TYPE: &str = "audio/webm";
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RestoreOutcome {
     pub entries: usize,
@@ -40,21 +46,25 @@ pub struct RestoreOutcome {
     pub activities: usize,
     pub reminders: usize,
     pub media: usize,
+    pub skipped: usize,
     pub unreadable: Vec<String>,
 }
 
 pub struct Deps {
     pub reader: Arc<dyn BackupReaderPort>,
     pub entry_command: Arc<dyn MoodEntryCommandPort>,
+    pub entry_query: Arc<dyn MoodEntryQueryPort>,
     pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
     pub activity_command: Arc<dyn ActivityCommandPort>,
     pub activity_query: Arc<dyn ActivityQueryPort>,
     pub reminder_command: Arc<dyn ReminderCommandPort>,
+    pub reminder_query: Arc<dyn ReminderQueryPort>,
     pub metrics: Arc<dyn DailyMetricCommandPort>,
     pub cycles: Arc<dyn CycleStartCommandPort>,
     pub preferences_command: Arc<dyn UserPreferencesCommandPort>,
     pub preferences_query: Arc<dyn UserPreferencesQueryPort>,
     pub media_storage: Arc<dyn MediaStoragePort>,
+    pub media_ownership: Arc<dyn MediaOwnershipPort>,
 }
 
 #[tracing::instrument(skip(deps))]
@@ -67,7 +77,7 @@ pub async fn execute(
     let mut outcome = RestoreOutcome::default();
 
     let activities = restore_activities(&user_id, &contents.activities, deps, &mut outcome).await?;
-    let media = restore_media(&contents, deps, &mut outcome).await;
+    let media = restore_media(&user_id, &contents, deps, &mut outcome).await;
     let renamed = Renamed { activities, media };
     restore_entries(&user_id, &contents.entries, &renamed, deps, &mut outcome).await?;
     restore_metrics(&user_id, &contents.metrics, deps, &mut outcome).await?;
@@ -82,6 +92,7 @@ pub async fn execute(
         activities = outcome.activities,
         reminders = outcome.reminders,
         media = outcome.media,
+        skipped = outcome.skipped,
         unreadable = outcome.unreadable.len(),
         "restored a backup"
     );
@@ -124,8 +135,12 @@ async fn restore_activities(
             .and_then(|category| CategoryName::new(category).ok());
 
         let mut activity = Activity::new(user_id.clone(), name, category);
-        if held.archived {
-            let _ = activity.archive();
+        if held.archived
+            && let Err(error) = activity.archive()
+        {
+            outcome
+                .unreadable
+                .push(format!("activity {}: {error}", held.name));
         }
 
         deps.activity_command.save(&activity).await?;
@@ -143,6 +158,9 @@ async fn restore_entries(
     deps: &Deps,
     outcome: &mut RestoreOutcome,
 ) -> Result<(), ApplicationError> {
+    let existing = deps.entry_query.find_all_by_user(user_id).await?;
+    let mut already_here = AlreadyHere::holding(&existing);
+
     for held in backed_up {
         let Ok(logged_at) = chrono::DateTime::parse_from_rfc3339(&held.logged_at) else {
             outcome
@@ -157,6 +175,12 @@ async fn restore_entries(
                 .push(format!("entry at {}: unreadable mood", held.logged_at));
             continue;
         };
+
+        if already_here.holds(&logged_at, mood) {
+            outcome.skipped += 1;
+            continue;
+        }
+        already_here.remember(&logged_at, mood);
 
         let entry = MoodEntry::new(user_id.clone(), mood, logged_at);
         deps.entry_command.save(&entry).await?;
@@ -239,7 +263,14 @@ async fn restore_metrics(
             None => Source::Manual,
             Some(name) => match ProviderName::new(name) {
                 Ok(provider) => Source::Provider(provider),
-                Err(_) => Source::Manual,
+                Err(_) => {
+                    outcome.unreadable.push(format!(
+                        "metric {} on {}: {name} is not a usable provider name, so it reads as manual",
+                        held.kind, held.date
+                    ));
+
+                    Source::Manual
+                }
             },
         };
 
@@ -276,14 +307,20 @@ async fn restore_reminders(
     deps: &Deps,
     outcome: &mut RestoreOutcome,
 ) -> Result<(), ApplicationError> {
-    for held in backed_up {
-        let mut schedule = DaySchedule::new();
+    let existing: Vec<DaySchedule> = deps
+        .reminder_query
+        .find_by_user(user_id)
+        .await?
+        .iter()
+        .map(|reminder| reminder.schedule().clone())
+        .collect();
 
-        for (day, time) in WEEK.iter().zip(&held.times) {
-            let at = time
-                .as_ref()
-                .and_then(|time| NaiveTime::parse_from_str(time, "%H:%M").ok());
-            schedule.set_time(*day, at);
+    for held in backed_up {
+        let schedule = rebuilt_schedule(held);
+
+        if existing.contains(&schedule) {
+            outcome.skipped += 1;
+            continue;
         }
 
         let mut reminder = Reminder::new(user_id.clone(), schedule);
@@ -300,6 +337,19 @@ async fn restore_reminders(
     Ok(())
 }
 
+fn rebuilt_schedule(held: &RestorableReminder) -> DaySchedule {
+    let mut schedule = DaySchedule::new();
+
+    for (day, time) in WEEK.iter().zip(&held.times) {
+        let at = time
+            .as_ref()
+            .and_then(|time| NaiveTime::parse_from_str(time, "%H:%M").ok());
+        schedule.set_time(*day, at);
+    }
+
+    schedule
+}
+
 async fn restore_preferences(
     user_id: &UserId,
     tracks_cycle: bool,
@@ -314,41 +364,81 @@ async fn restore_preferences(
 }
 
 async fn restore_media(
+    owner: &UserId,
     contents: &RestorableContents,
     deps: &Deps,
     outcome: &mut RestoreOutcome,
 ) -> HashMap<String, String> {
     let mut renamed = HashMap::new();
 
-    for (was, bytes) in &contents.photos {
-        let Ok(upload) = photo_upload(bytes) else {
-            continue;
+    for held in &contents.photos {
+        let upload = match upload_of(held, PHOTO_FALLBACK_TYPE) {
+            Ok(upload) => upload,
+            Err(reason) => {
+                outcome
+                    .unreadable
+                    .push(format!("photo {}: {reason}", held.id));
+                continue;
+            }
         };
 
-        if let Ok(now) = deps.media_storage.store_photo(upload).await {
-            renamed.insert(was.clone(), now.value().to_string());
-            outcome.media += 1;
+        match deps.media_storage.store_photo(upload).await {
+            Ok(now) => {
+                remember(owner, (&now).into(), deps, outcome).await;
+                renamed.insert(held.id.clone(), now.value().to_string());
+                outcome.media += 1;
+            }
+            Err(error) => outcome
+                .unreadable
+                .push(format!("photo {}: could not be stored: {error}", held.id)),
         }
     }
 
-    for (was, bytes) in &contents.voice_memos {
-        let Ok(upload) = memo_upload(bytes) else {
-            continue;
+    for held in &contents.voice_memos {
+        let upload = match upload_of(held, VOICE_MEMO_FALLBACK_TYPE) {
+            Ok(upload) => upload,
+            Err(reason) => {
+                outcome
+                    .unreadable
+                    .push(format!("voice memo {}: {reason}", held.id));
+                continue;
+            }
         };
 
-        if let Ok(now) = deps.media_storage.store_voice_memo(upload).await {
-            renamed.insert(was.clone(), now.value().to_string());
-            outcome.media += 1;
+        match deps.media_storage.store_voice_memo(upload).await {
+            Ok(now) => {
+                remember(owner, (&now).into(), deps, outcome).await;
+                renamed.insert(held.id.clone(), now.value().to_string());
+                outcome.media += 1;
+            }
+            Err(error) => outcome.unreadable.push(format!(
+                "voice memo {}: could not be stored: {error}",
+                held.id
+            )),
         }
     }
 
     renamed
 }
 
-fn photo_upload(bytes: &[u8]) -> Result<MediaUpload, domain::errors::DomainError> {
-    MediaUpload::new(bytes.to_vec(), ContentType::new("image/jpeg")?)
+async fn remember(
+    owner: &UserId,
+    media: domain::attachment::MediaRef,
+    deps: &Deps,
+    outcome: &mut RestoreOutcome,
+) {
+    if let Err(error) = deps.media_ownership.remember(owner, media).await {
+        outcome
+            .unreadable
+            .push(format!("{media}: restored but not claimed: {error}"));
+    }
 }
 
-fn memo_upload(bytes: &[u8]) -> Result<MediaUpload, domain::errors::DomainError> {
-    MediaUpload::new(bytes.to_vec(), ContentType::new("audio/webm")?)
+fn upload_of(held: &RestorableMedia, fallback: &str) -> Result<MediaUpload, String> {
+    let content_type = match held.content_type.clone() {
+        Some(content_type) => content_type,
+        None => ContentType::new(fallback).map_err(|error| error.to_string())?,
+    };
+
+    MediaUpload::new(held.data.clone(), content_type).map_err(|error| error.to_string())
 }

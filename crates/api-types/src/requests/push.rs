@@ -25,8 +25,9 @@ pub struct PushUnsubscribeRequest {
 }
 
 impl PushUnsubscribeRequest {
-    pub fn into_command(self) -> UnsubscribePushCommand {
+    pub fn into_command(self, user_id: UserId) -> UnsubscribePushCommand {
         UnsubscribePushCommand {
+            user_id,
             endpoint: self.endpoint,
         }
     }

@@ -39,7 +39,7 @@ pub use job::{
     JobQueueCommandPort, JobQueueQueryPort, RecordingBackfillQueryPort, UnidentifiedSong,
     UnwatchedPlace, WeatherBacklogQueryPort, WeatherLookupPort,
 };
-pub use media::{MediaFile, MediaStoragePort};
+pub use media::{MediaFile, MediaOwnershipPort, MediaStoragePort};
 pub use metric::{DailyMetricCommandPort, DailyMetricQueryPort};
 pub use music::{NowPlayingPort, RecordingLookupPort};
 pub use provider::{ProviderConnectionCommandPort, ProviderConnectionQueryPort};
@@ -47,7 +47,7 @@ pub use push::{PushSubscriptionCommandPort, PushSubscriptionQueryPort};
 pub use rejection::{RejectionCommandPort, RejectionQueryPort};
 pub use reminder::{ReminderCommandPort, ReminderQueryPort, ReminderSenderPort};
 pub use restore::{
-    BackupReaderPort, RestorableActivity, RestorableContents, RestorableEntry, RestorableMetric,
-    RestorableReminder,
+    BackupReaderPort, RestorableActivity, RestorableContents, RestorableEntry, RestorableMedia,
+    RestorableMetric, RestorableReminder,
 };
 pub use user::{UserCommandPort, UserQueryPort};

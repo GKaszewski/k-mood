@@ -15,7 +15,7 @@ use domain::reminder::Reminder;
 
 use super::shared::{io_err, json_err, zip_err};
 
-pub const BACKUP_FORMAT_VERSION: u32 = 2;
+pub const BACKUP_FORMAT_VERSION: u32 = 3;
 pub const BACKUP_MANIFEST: &str = "backup.json";
 
 pub struct ZipBackupWriter;
@@ -67,6 +67,7 @@ fn manifest(backup: &UserBackup) -> Result<Vec<u8>, DomainError> {
             .map(BackedUpReminder::from)
             .collect(),
         tracks_cycle: backup.preferences.tracks_cycle(),
+        media: backed_up_media(backup),
     };
 
     serde_json::to_vec_pretty(&manifest).map_err(json_err)
@@ -82,6 +83,37 @@ pub struct BackupManifest {
     pub activities: Vec<BackedUpActivity>,
     pub reminders: Vec<BackedUpReminder>,
     pub tracks_cycle: bool,
+    #[serde(default)]
+    pub media: Vec<BackedUpMedia>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackedUpMedia {
+    pub id: String,
+    pub kind: String,
+    pub content_type: String,
+}
+
+pub const PHOTO_KIND: &str = "photo";
+pub const VOICE_MEMO_KIND: &str = "voice_memo";
+
+fn backed_up_media(backup: &UserBackup) -> Vec<BackedUpMedia> {
+    let photos = backup.media.photos.iter().map(|blob| (PHOTO_KIND, blob));
+    let memos = backup
+        .media
+        .voice_memos
+        .iter()
+        .map(|blob| (VOICE_MEMO_KIND, blob));
+
+    photos
+        .chain(memos)
+        .map(|(kind, blob)| BackedUpMedia {
+            id: blob.id.clone(),
+            kind: kind.to_string(),
+            content_type: blob.content_type.value().to_string(),
+        })
+        .collect()
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

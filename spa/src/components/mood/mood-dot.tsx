@@ -4,23 +4,24 @@ import { cn } from "@/lib/utils"
 interface MoodDotProps {
   value: number
   size?: "sm" | "md"
+  /**
+   * Whether the dot needs to name itself. False where the surrounding control
+   * already says which mood this is, so it is not read out twice.
+   */
+  labelled?: boolean
 }
 
-const BG_COLORS: Record<number, string> = {
-  1: "bg-red-500",
-  2: "bg-orange-500",
-  3: "bg-yellow-500",
-  4: "bg-lime-500",
-  5: "bg-green-500",
-}
+const SIZES = { sm: "h-2 w-2", md: "h-3 w-3" } as const
 
-export function MoodDot({ value, size = "sm" }: MoodDotProps) {
-  const sizes = { sm: "h-2 w-2", md: "h-3 w-3" }
+export function MoodDot({ value, size = "sm", labelled = true }: MoodDotProps) {
+  const mood = getMood(value)
 
   return (
     <span
-      className={cn("inline-block rounded-full", sizes[size], BG_COLORS[value])}
-      title={getMood(value).label}
+      role={labelled ? "img" : undefined}
+      aria-label={labelled ? mood.label : undefined}
+      aria-hidden={labelled ? undefined : true}
+      className={cn("inline-block rounded-full", SIZES[size], mood.background)}
     />
   )
 }

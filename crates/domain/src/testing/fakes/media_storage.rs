@@ -5,9 +5,11 @@ use crate::attachment::{ContentType, MediaUpload, PhotoId, VoiceMemoId};
 use crate::errors::DomainError;
 use crate::ports::MediaFile;
 
+type Blob = (Vec<u8>, ContentType);
+
 pub struct FakeMediaStorage {
-    photos: RwLock<HashMap<PhotoId, Vec<u8>>>,
-    voice_memos: RwLock<HashMap<VoiceMemoId, Vec<u8>>>,
+    photos: RwLock<HashMap<PhotoId, Blob>>,
+    voice_memos: RwLock<HashMap<VoiceMemoId, Blob>>,
     deletions_attempted: RwLock<Vec<String>>,
     refusing_to_delete: bool,
 }
@@ -30,17 +32,49 @@ impl FakeMediaStorage {
     }
 
     pub fn put_photo(&self, id: &PhotoId, bytes: &[u8]) {
+        self.put_photo_as(
+            id,
+            bytes,
+            ContentType::from_persistence("image/jpeg".into()),
+        );
+    }
+
+    pub fn put_photo_as(&self, id: &PhotoId, bytes: &[u8], content_type: ContentType) {
         self.photos
             .write()
             .unwrap()
-            .insert(id.clone(), bytes.to_vec());
+            .insert(id.clone(), (bytes.to_vec(), content_type));
     }
 
     pub fn put_voice_memo(&self, id: &VoiceMemoId, bytes: &[u8]) {
+        self.put_voice_memo_as(
+            id,
+            bytes,
+            ContentType::from_persistence("audio/webm".into()),
+        );
+    }
+
+    pub fn put_voice_memo_as(&self, id: &VoiceMemoId, bytes: &[u8], content_type: ContentType) {
         self.voice_memos
             .write()
             .unwrap()
-            .insert(id.clone(), bytes.to_vec());
+            .insert(id.clone(), (bytes.to_vec(), content_type));
+    }
+
+    pub fn type_of_photo(&self, id: &PhotoId) -> Option<ContentType> {
+        self.photos
+            .read()
+            .unwrap()
+            .get(id)
+            .map(|(_, content_type)| content_type.clone())
+    }
+
+    pub fn type_of_voice_memo(&self, id: &VoiceMemoId) -> Option<ContentType> {
+        self.voice_memos
+            .read()
+            .unwrap()
+            .get(id)
+            .map(|(_, content_type)| content_type.clone())
     }
 
     pub fn holds_photo(&self, id: &PhotoId) -> bool {
@@ -70,23 +104,28 @@ impl Default for FakeMediaStorage {
 impl crate::ports::MediaStoragePort for FakeMediaStorage {
     async fn store_photo(&self, upload: MediaUpload) -> Result<PhotoId, DomainError> {
         let id = PhotoId::generate();
-        self.put_photo(&id, upload.data());
+        self.put_photo_as(&id, upload.data(), upload.content_type().clone());
 
         Ok(id)
     }
 
     async fn store_voice_memo(&self, upload: MediaUpload) -> Result<VoiceMemoId, DomainError> {
         let id = VoiceMemoId::generate();
-        self.put_voice_memo(&id, upload.data());
+        self.put_voice_memo_as(&id, upload.data(), upload.content_type().clone());
 
         Ok(id)
     }
 
     async fn get_photo(&self, id: &PhotoId) -> Result<Option<MediaFile>, DomainError> {
-        Ok(self.photos.read().unwrap().get(id).map(|bytes| MediaFile {
-            data: bytes.clone(),
-            content_type: ContentType::from_persistence("image/jpeg".into()),
-        }))
+        Ok(self
+            .photos
+            .read()
+            .unwrap()
+            .get(id)
+            .map(|(data, content_type)| MediaFile {
+                data: data.clone(),
+                content_type: content_type.clone(),
+            }))
     }
 
     async fn get_voice_memo(&self, id: &VoiceMemoId) -> Result<Option<MediaFile>, DomainError> {
@@ -95,9 +134,9 @@ impl crate::ports::MediaStoragePort for FakeMediaStorage {
             .read()
             .unwrap()
             .get(id)
-            .map(|bytes| MediaFile {
-                data: bytes.clone(),
-                content_type: ContentType::from_persistence("audio/webm".into()),
+            .map(|(data, content_type)| MediaFile {
+                data: data.clone(),
+                content_type: content_type.clone(),
             }))
     }
 

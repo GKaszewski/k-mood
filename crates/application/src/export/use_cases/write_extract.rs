@@ -18,7 +18,7 @@ pub struct Deps {
 #[tracing::instrument(skip(deps))]
 pub async fn execute(user_id: UserId, deps: &Deps) -> Result<Vec<u8>, ApplicationError> {
     let entries = EntryComposer::new(deps.dimensions.clone())
-        .compose(deps.entries.find_by_user(&user_id, None, None).await?)
+        .compose(deps.entries.find_all_by_user(&user_id).await?)
         .await?;
 
     let extract = SharedExtract {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use domain::api_token::ApiToken;
+use domain::api_token::{ApiToken, TokenScope, TokenScopes};
 use domain::ports::UserCommandPort;
 use domain::provider::ProviderName;
 use domain::testing::{FakeApiTokenSecret, InMemoryStore, test_user};
@@ -31,6 +31,14 @@ async fn a_user_with_no_tokens() -> Fixture {
 
 impl Fixture {
     async fn mint(&self, name: &str) -> Result<String, application::errors::ApplicationError> {
+        self.mint_granting(name, [TokenScope::WriteMetrics]).await
+    }
+
+    async fn mint_granting(
+        &self,
+        name: &str,
+        scopes: impl IntoIterator<Item = TokenScope>,
+    ) -> Result<String, application::errors::ApplicationError> {
         let deps = mint_api_token::Deps {
             command: self.store.clone(),
             secrets: self.secrets.clone(),
@@ -40,6 +48,7 @@ impl Fixture {
             MintApiTokenCommand {
                 user_id: self.user.id().clone(),
                 name: ProviderName::new(name)?,
+                scopes: TokenScopes::new(scopes)?,
             },
             &deps,
         )
@@ -49,13 +58,20 @@ impl Fixture {
     }
 
     async fn authenticate(&self, secret: &str) -> Option<ApiToken> {
+        self.authenticate_for(secret, TokenScope::WriteMetrics)
+            .await
+    }
+
+    async fn authenticate_for(&self, secret: &str, needed: TokenScope) -> Option<ApiToken> {
         let deps = authenticate_api_token::Deps {
             query: self.store.clone(),
             command: self.store.clone(),
             secrets: self.secrets.clone(),
         };
 
-        authenticate_api_token::execute(secret, &deps).await.ok()
+        authenticate_api_token::execute(secret, needed, &deps)
+            .await
+            .ok()
     }
 
     async fn list(&self) -> Vec<ApiToken> {
@@ -180,4 +196,84 @@ async fn every_minting_produces_a_different_secret() {
     let second = fixture.mint("tasker").await.unwrap();
 
     assert_ne!(first, second);
+}
+
+#[tokio::test]
+async fn a_token_authenticates_only_for_a_scope_it_grants() {
+    let fixture = a_user_with_no_tokens().await;
+    let secret = fixture
+        .mint_granting("widget", [TokenScope::ReadJournal])
+        .await
+        .unwrap();
+
+    assert!(
+        fixture
+            .authenticate_for(&secret, TokenScope::ReadJournal)
+            .await
+            .is_some(),
+        "the scope it was minted for must work"
+    );
+
+    for refused in [
+        TokenScope::WriteJournal,
+        TokenScope::WriteMetrics,
+        TokenScope::ReadProfile,
+    ] {
+        assert!(
+            fixture.authenticate_for(&secret, refused).await.is_none(),
+            "a read-only token must not pass for {refused}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_token_can_grant_several_scopes_at_once() {
+    let fixture = a_user_with_no_tokens().await;
+    let secret = fixture
+        .mint_granting(
+            "widget",
+            [TokenScope::ReadJournal, TokenScope::WriteJournal],
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        fixture
+            .authenticate_for(&secret, TokenScope::ReadJournal)
+            .await
+            .is_some()
+    );
+    assert!(
+        fixture
+            .authenticate_for(&secret, TokenScope::WriteJournal)
+            .await
+            .is_some()
+    );
+    assert!(
+        fixture
+            .authenticate_for(&secret, TokenScope::ReadProfile)
+            .await
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn the_scopes_a_token_grants_are_listed_back() {
+    let fixture = a_user_with_no_tokens().await;
+    fixture
+        .mint_granting(
+            "widget",
+            [TokenScope::ReadJournal, TokenScope::WriteJournal],
+        )
+        .await
+        .unwrap();
+
+    let listed = fixture.list().await;
+
+    assert_eq!(listed.len(), 1);
+    assert_eq!(
+        listed[0].scopes().names(),
+        vec!["readJournal", "writeJournal"],
+        "a client needs to see what a token it holds can do"
+    );
 }

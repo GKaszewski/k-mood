@@ -8,7 +8,7 @@ impl From<CalendarDay> for CalendarDayResponse {
             date: day.date.value(),
             day_mood: day.day_mood.map(|mood| mood.value()),
             mood: day.day_mood.map(|mood| mood.rounded().value()),
-            mood_label: day.day_mood.map(|mood| format!("{:?}", mood.rounded())),
+            mood_label: day.day_mood.map(|mood| mood.rounded().label().to_string()),
             cycle_day: day.cycle_day.map(|cycle| cycle.value()),
             entries: day.entries.into_iter().map(EntryResponse::from).collect(),
         }

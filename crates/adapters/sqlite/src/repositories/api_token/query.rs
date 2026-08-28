@@ -21,7 +21,7 @@ impl SqliteApiTokenQueryRepository {
 impl domain::ports::ApiTokenQueryPort for SqliteApiTokenQueryRepository {
     async fn find_by_digest(&self, digest: &TokenDigest) -> Result<Option<ApiToken>, DomainError> {
         let row: Option<ApiTokenRow> = sqlx::query_as(
-            "SELECT id, user_id, name, digest, scope, created_at, last_used_at
+            "SELECT id, user_id, name, digest, scopes, created_at, last_used_at
              FROM api_tokens WHERE digest = ?",
         )
         .bind(digest.value())
@@ -34,7 +34,7 @@ impl domain::ports::ApiTokenQueryPort for SqliteApiTokenQueryRepository {
 
     async fn find_by_user(&self, user_id: &UserId) -> Result<Vec<ApiToken>, DomainError> {
         let rows: Vec<ApiTokenRow> = sqlx::query_as(
-            "SELECT id, user_id, name, digest, scope, created_at, last_used_at
+            "SELECT id, user_id, name, digest, scopes, created_at, last_used_at
              FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC",
         )
         .bind(user_id.value().to_string())

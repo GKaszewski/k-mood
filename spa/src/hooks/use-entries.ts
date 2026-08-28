@@ -1,11 +1,47 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
+import type { QueryClient } from "@tanstack/react-query"
 import { entries } from "@/api/client"
 import type { CreateEntryRequest } from "@/api/schema"
 
-export function useEntries(options?: { limit?: number; offset?: number }) {
+export const ENTRY_PAGE_SIZE = 30
+
+/** Everything a written entry can change. */
+const JOURNAL_KEYS = [["entries"], ["stats"], ["trend"], ["calendar"]] as const
+
+export function invalidateJournal(queryClient: QueryClient): void {
+  for (const queryKey of JOURNAL_KEYS) {
+    queryClient.invalidateQueries({ queryKey })
+  }
+}
+
+/** A narrowing of the journal. Every field left out widens the selection. */
+export interface EntryFilters {
+  mood?: number
+  activity?: string
+  from?: string
+  to?: string
+}
+
+export function useEntryFeed(filters: EntryFilters = {}) {
+  return useInfiniteQuery({
+    queryKey: ["entries", "feed", filters],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      entries.list({ ...filters, limit: ENTRY_PAGE_SIZE, offset: pageParam }),
+    getNextPageParam: (page) =>
+      page.hasMore ? page.offset + page.limit : undefined,
+  })
+}
+
+export function useRecentEntries(limit: number) {
   return useQuery({
-    queryKey: ["entries", { limit: options?.limit, offset: options?.offset }],
-    queryFn: () => entries.list(options),
+    queryKey: ["entries", "recent", limit],
+    queryFn: () => entries.list({ limit }),
   })
 }
 
@@ -23,10 +59,7 @@ export function useCreateEntry() {
   return useMutation({
     meta: { success: "Entry created" },
     mutationFn: (body: CreateEntryRequest) => entries.create(body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["entries"] })
-      queryClient.invalidateQueries({ queryKey: ["stats"] })
-    },
+    onSuccess: () => invalidateJournal(queryClient),
   })
 }
 
@@ -36,16 +69,6 @@ export function useDeleteEntry() {
   return useMutation({
     meta: { success: "Entry deleted" },
     mutationFn: (id: string) => entries.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["entries"] })
-      queryClient.invalidateQueries({ queryKey: ["stats"] })
-    },
-  })
-}
-
-export function useMoodStats(from?: string, to?: string) {
-  return useQuery({
-    queryKey: ["stats", { from, to }],
-    queryFn: () => entries.stats(from && to ? { from, to } : undefined),
+    onSuccess: () => invalidateJournal(queryClient),
   })
 }

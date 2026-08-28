@@ -11,6 +11,7 @@ impl From<RestoreOutcome> for RestoreOutcomeResponse {
             activities: outcome.activities,
             reminders: outcome.reminders,
             media: outcome.media,
+            skipped: outcome.skipped,
             unreadable: outcome.unreadable,
         }
     }

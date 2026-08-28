@@ -4,23 +4,27 @@ use axum::http::StatusCode;
 
 use api_types::mappers::parse_date;
 use api_types::requests::SetPreferencesRequest;
-use api_types::responses::{CycleViewResponse, PreferencesResponse};
+use api_types::responses::{CycleViewResponse, ErrorResponse, PreferencesResponse};
 use application::cycle::use_cases::{forget_cycle_start, read_cycle, record_cycle_start};
 use application::user::use_cases::set_preferences;
 
 use crate::errors::ApiError;
-use crate::extractors::AuthenticatedUser;
+use crate::extractors::{Body, JournalReader, JournalWriter, ProfileReader, SessionUser};
 use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/cycle", tag = "cycle", security(("bearer" = [])),
     description = "The recorded cycle starts and the cycle day derived for today. Cycle day is \
                    never stored: correcting a start corrects every day that depended on it. \
                    Returns nothing at all while cycle tracking is off.",
-    responses((status = 200, body = CycleViewResponse))
+    responses((status = 200, body = CycleViewResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_read(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalReader(user_id): JournalReader,
 ) -> Result<Json<CycleViewResponse>, ApiError> {
     let deps = read_cycle::Deps {
         query: state.cycle_query,
@@ -37,11 +41,15 @@ pub async fn handle_read(
     description = "Records that a cycle began on this date. Recording the same date twice \
                    records it once.",
     params(("date" = String, Path, description = "Calendar date, as YYYY-MM-DD")),
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_record(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalWriter(user_id): JournalWriter,
     Path(date): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let deps = record_cycle_start::Deps {
@@ -58,11 +66,15 @@ pub async fn handle_record(
     description = "Forgets a recorded start. Every day that derived its cycle day from it \
                    changes at once.",
     params(("date" = String, Path, description = "Calendar date, as YYYY-MM-DD")),
-    responses((status = 204))
+    responses((status = 204),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_forget(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    JournalWriter(user_id): JournalWriter,
     Path(date): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let deps = forget_cycle_start::Deps {
@@ -78,12 +90,16 @@ pub async fn handle_forget(
     description = "Turns optional features on or off. Cycle tracking is off until turned on, \
                    and turning it off hides the cycle without forgetting what was recorded.",
     request_body = SetPreferencesRequest,
-    responses((status = 200, body = PreferencesResponse))
+    responses((status = 200, body = PreferencesResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_set_preferences(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
-    Json(body): Json<SetPreferencesRequest>,
+    SessionUser(user_id): SessionUser,
+    Body(body): Body<SetPreferencesRequest>,
 ) -> Result<Json<PreferencesResponse>, ApiError> {
     let deps = set_preferences::Deps {
         command: state.preferences_command,
@@ -96,11 +112,15 @@ pub async fn handle_set_preferences(
 }
 
 #[utoipa::path(get, path = "/api/v1/users/me/preferences", tag = "users", security(("bearer" = [])),
-    responses((status = 200, body = PreferencesResponse))
+    responses((status = 200, body = PreferencesResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
 )]
 pub async fn handle_preferences(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    ProfileReader(user_id): ProfileReader,
 ) -> Result<Json<PreferencesResponse>, ApiError> {
     let preferences =
         application::user::preferences::preferences_of(&user_id, &state.preferences_query).await?;

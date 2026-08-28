@@ -1,18 +1,20 @@
 use std::sync::Arc;
 
-use domain::dimension::lookup;
+use domain::dimension::DimensionValue;
 use domain::entry::MoodEntry;
 use domain::errors::DomainError;
 use domain::events::{DomainEvent, EventEnvelope};
 use domain::ports::{
-    EntryDimensionPort, EventPublisherPort, MediaStoragePort, MoodEntryCommandPort,
-    MoodEntryQueryPort,
+    ActivityQueryPort, EntryDimensionPort, EventPublisherPort, MediaStoragePort,
+    MoodEntryCommandPort, MoodEntryQueryPort,
 };
 use domain::user::UserId;
 
 use crate::authorization::verify_ownership;
 use crate::entry::composition::EntryComposer;
+use crate::entry::tagging::verify_activities_may_be_tagged;
 use crate::errors::ApplicationError;
+use crate::media::dropped::{DroppedMedia, delete_dropped};
 
 use super::super::commands::UpdateEntryCommand;
 
@@ -20,6 +22,7 @@ pub struct Deps {
     pub command: Arc<dyn MoodEntryCommandPort>,
     pub dimensions: Vec<Arc<dyn EntryDimensionPort>>,
     pub query: Arc<dyn MoodEntryQueryPort>,
+    pub activities: Arc<dyn ActivityQueryPort>,
     pub media_storage: Arc<dyn MediaStoragePort>,
     pub events: Arc<dyn EventPublisherPort>,
 }
@@ -38,38 +41,28 @@ pub async fn execute(
 
     verify_ownership(entry.user_id(), &caller_id)?;
 
-    let previous = EntryComposer::new(deps.dimensions.clone())
-        .compose(vec![entry.clone()])
-        .await?;
-    let old_photos = previous[0].photos().to_vec();
-    let old_memos = previous[0].voice_memos().to_vec();
+    let dropped = match &cmd.dimensions {
+        Some(wanted) => Some(replace_dimensions(&entry, wanted, &caller_id, deps).await?),
+        None => None,
+    };
 
-    entry.update_mood(cmd.mood);
+    if let Some(mood) = cmd.mood {
+        entry.update_mood(mood);
+    }
     if let Some(logged_at) = cmd.logged_at {
         entry.update_logged_at(logged_at);
     }
 
-    let new_photos = lookup::photos_in(&cmd.dimensions);
-    let new_memos = lookup::voice_memos_in(&cmd.dimensions);
-
-    for photo_id in &old_photos {
-        if !new_photos.contains(photo_id)
-            && let Err(e) = deps.media_storage.delete_photo(photo_id).await
-        {
-            tracing::warn!(%e, "failed to delete removed photo blob");
-        }
-    }
-    for memo_id in &old_memos {
-        if !new_memos.contains(memo_id)
-            && let Err(e) = deps.media_storage.delete_voice_memo(memo_id).await
-        {
-            tracing::warn!(%e, "failed to delete removed voice memo blob");
-        }
-    }
-
     deps.command.save(&entry).await?;
-    for port in &deps.dimensions {
-        port.save(entry.id(), &cmd.dimensions).await?;
+
+    if let Some(wanted) = &cmd.dimensions {
+        for port in &deps.dimensions {
+            port.save(entry.id(), wanted).await?;
+        }
+    }
+
+    if let Some(dropped) = dropped {
+        delete_dropped(&dropped, &deps.media_storage).await;
     }
 
     let event = DomainEvent::EntryUpdated {
@@ -79,4 +72,25 @@ pub async fn execute(
     deps.events.publish(EventEnvelope::wrap(event)).await?;
 
     Ok(entry)
+}
+
+async fn replace_dimensions(
+    entry: &MoodEntry,
+    wanted: &[DimensionValue],
+    caller_id: &UserId,
+    deps: &Deps,
+) -> Result<DroppedMedia, ApplicationError> {
+    let previous = EntryComposer::new(deps.dimensions.clone())
+        .compose(vec![entry.clone()])
+        .await?;
+
+    verify_activities_may_be_tagged(
+        caller_id,
+        wanted,
+        previous[0].activities(),
+        &deps.activities,
+    )
+    .await?;
+
+    Ok(DroppedMedia::between(&previous[0], wanted))
 }

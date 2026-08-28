@@ -1,5 +1,5 @@
 use crate::activity::ActivityId;
-use crate::entry::{DateRange, Mood, MoodEntry, MoodEntryId};
+use crate::entry::{DateRange, EntrySelection, MoodEntry, MoodEntryId, Pagination};
 use crate::errors::DomainError;
 use crate::user::UserId;
 
@@ -27,12 +27,15 @@ pub trait MoodEntryCommandPort: Send + Sync {
 #[async_trait::async_trait]
 pub trait MoodEntryQueryPort: Send + Sync {
     async fn find_by_id(&self, id: &MoodEntryId) -> Result<Option<MoodEntry>, DomainError>;
-    async fn find_by_user(
+    async fn find_all_by_user(&self, user_id: &UserId) -> Result<Vec<MoodEntry>, DomainError>;
+
+    async fn select(
         &self,
-        user_id: &UserId,
-        limit: Option<i64>,
-        offset: Option<i64>,
+        selection: &EntrySelection,
+        page: Pagination,
     ) -> Result<Vec<MoodEntry>, DomainError>;
+
+    async fn count(&self, selection: &EntrySelection) -> Result<u64, DomainError>;
 
     async fn find_by_date_range(
         &self,
@@ -40,15 +43,5 @@ pub trait MoodEntryQueryPort: Send + Sync {
         range: &DateRange,
     ) -> Result<Vec<MoodEntry>, DomainError>;
 
-    async fn find_by_mood(
-        &self,
-        user_id: &UserId,
-        mood: Mood,
-    ) -> Result<Vec<MoodEntry>, DomainError>;
-
-    async fn find_by_activity(
-        &self,
-        user_id: &UserId,
-        activity_id: &ActivityId,
-    ) -> Result<Vec<MoodEntry>, DomainError>;
+    async fn count_tagged_with(&self, activity_id: &ActivityId) -> Result<u64, DomainError>;
 }

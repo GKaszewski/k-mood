@@ -28,9 +28,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         "listening; background work runs in the k-mood-worker process"
     );
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(bootstrap::shutdown::on_signal())
-        .await?;
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(bootstrap::shutdown::on_signal())
+    .await?;
 
     tracing::info!("k-mood server shut down gracefully");
 

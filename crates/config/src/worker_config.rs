@@ -2,6 +2,7 @@ const DEFAULT_POLL_SECONDS: u64 = 15;
 const DEFAULT_SWEEP_SECONDS: u64 = 900;
 const DEFAULT_SESSION_CLEANUP_SECONDS: u64 = 3600;
 const DEFAULT_REMINDER_SECONDS: u64 = 60;
+const DEFAULT_REMINDER_GRACE_MINUTES: i64 = 30;
 const DEFAULT_JOBS_PER_POLL: usize = 20;
 const DEFAULT_ENQUEUED_PER_SWEEP: usize = 200;
 const DEFAULT_MOST_ATTEMPTS: u32 = 5;
@@ -15,6 +16,7 @@ pub struct WorkerConfig {
     pub sweep_seconds: u64,
     pub session_cleanup_seconds: u64,
     pub reminder_seconds: u64,
+    pub reminder_grace_minutes: i64,
     pub jobs_per_poll: usize,
     pub enqueued_per_sweep: usize,
     pub most_attempts: u32,
@@ -29,6 +31,7 @@ impl Default for WorkerConfig {
             sweep_seconds: DEFAULT_SWEEP_SECONDS,
             session_cleanup_seconds: DEFAULT_SESSION_CLEANUP_SECONDS,
             reminder_seconds: DEFAULT_REMINDER_SECONDS,
+            reminder_grace_minutes: DEFAULT_REMINDER_GRACE_MINUTES,
             jobs_per_poll: DEFAULT_JOBS_PER_POLL,
             enqueued_per_sweep: DEFAULT_ENQUEUED_PER_SWEEP,
             most_attempts: DEFAULT_MOST_ATTEMPTS,

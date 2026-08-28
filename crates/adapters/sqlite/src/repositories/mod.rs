@@ -8,6 +8,7 @@ mod daily_metric;
 mod dimension;
 mod entry;
 mod job;
+mod media;
 mod provider_connection;
 mod push_subscription;
 mod refresh_session;
@@ -29,6 +30,7 @@ pub use entry::{SqliteEntryCommandRepository, SqliteEntryQueryRepository};
 pub use job::{
     SqliteJobQueueRepository, SqliteRecordingBackfillRepository, SqliteWeatherBacklogRepository,
 };
+pub use media::SqliteMediaOwnershipRepository;
 pub use provider_connection::{
     SqliteProviderConnectionCommandRepository, SqliteProviderConnectionQueryRepository,
 };

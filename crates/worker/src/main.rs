@@ -54,6 +54,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let reminders = context.reminder_sender.clone().map(|sender| {
         tokio::spawn(loops::send_due_reminders(
             context.state.reminder_query.clone(),
+            context.state.reminder_command.clone(),
             context.state.user_query.clone(),
             sender,
             worker,

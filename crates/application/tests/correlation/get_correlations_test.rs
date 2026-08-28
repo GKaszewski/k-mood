@@ -78,6 +78,9 @@ async fn correlations(store: &Arc<InMemoryStore>, user: &User) -> Vec<Correlatio
         weather_store: Arc::new(domain::testing::InMemoryDimensionStore::new(
             domain::dimension::DimensionKind::Weather,
         )),
+        activity_store: Arc::new(domain::testing::InMemoryActivityDimension::sharing(
+            store.clone(),
+        )),
         preferences: store.clone(),
         users: store.clone(),
     };
@@ -281,6 +284,9 @@ async fn correlations_with_floor(
         weather_store: Arc::new(domain::testing::InMemoryDimensionStore::new(
             domain::dimension::DimensionKind::Weather,
         )),
+        activity_store: Arc::new(domain::testing::InMemoryActivityDimension::sharing(
+            store.clone(),
+        )),
         preferences: store.clone(),
         users: store.clone(),
     };
@@ -483,7 +489,7 @@ async fn an_activity_never_logged_in_the_span_is_not_a_row_at_all() {
 async fn deps_free_entries(store: &Arc<InMemoryStore>, user: &User) -> Vec<MoodEntry> {
     use domain::ports::MoodEntryQueryPort;
 
-    MoodEntryQueryPort::find_by_user(store.as_ref(), user.id(), None, None)
+    MoodEntryQueryPort::find_all_by_user(store.as_ref(), user.id())
         .await
         .unwrap()
 }
@@ -501,6 +507,9 @@ async fn correlations_with_rate(
         cycles: store.clone(),
         weather_store: Arc::new(domain::testing::InMemoryDimensionStore::new(
             domain::dimension::DimensionKind::Weather,
+        )),
+        activity_store: Arc::new(domain::testing::InMemoryActivityDimension::sharing(
+            store.clone(),
         )),
         preferences: store.clone(),
         users: store.clone(),
@@ -735,5 +744,139 @@ async fn a_tracked_cycle_is_scored_like_anything_else_continuous() {
             .map(|s| s.strategy.name())
             .collect::<Vec<_>>(),
         ["pearson", "spearman", "kendall"]
+    );
+}
+
+async fn an_entry_at(
+    store: &Arc<InMemoryStore>,
+    user: &User,
+    mood: Mood,
+    at: DateTime<FixedOffset>,
+) -> MoodEntry {
+    let entry = MoodEntry::new(user.id().clone(), mood, at);
+    MoodEntryCommandPort::save(store.as_ref(), &entry)
+        .await
+        .unwrap();
+
+    entry
+}
+
+fn weather_at(celsius: f64) -> domain::dimension::DimensionValue {
+    domain::dimension::DimensionValue::Weather(domain::weather::Weather::new(
+        domain::weather::Condition::Clear,
+        domain::weather::Celsius::new(celsius).unwrap(),
+        domain::provider::ProviderName::new("a-provider").unwrap(),
+    ))
+}
+
+async fn temperature_row_over(
+    readings: &[(usize, f64)],
+    order: &[usize],
+) -> Option<CorrelationRow> {
+    let store = Arc::new(InMemoryStore::new());
+    let user = a_user_in_warsaw();
+    UserCommandPort::save(store.as_ref(), &user).await.unwrap();
+
+    let weather_store = Arc::new(domain::testing::InMemoryDimensionStore::new(
+        domain::dimension::DimensionKind::Weather,
+    ));
+
+    for day in 0..40 {
+        let mood = a_rising_mood_for(day);
+        let mut entries = Vec::new();
+
+        for (offset, _) in readings {
+            entries.push(
+                an_entry_at(
+                    &store,
+                    &user,
+                    mood,
+                    noon_on(day) + Duration::hours(*offset as i64),
+                )
+                .await,
+            );
+        }
+
+        for position in order {
+            let (_, celsius) = readings[*position];
+            weather_store.put(entries[*position].id(), weather_at(celsius));
+        }
+    }
+
+    let deps = get_correlations::Deps {
+        entries: store.clone(),
+        metrics: store.clone(),
+        activities: store.clone(),
+        cycles: store.clone(),
+        weather_store: weather_store.clone(),
+        activity_store: Arc::new(domain::testing::InMemoryActivityDimension::sharing(
+            store.clone(),
+        )),
+        preferences: store.clone(),
+        users: store.clone(),
+    };
+
+    let query = CorrelationQuery {
+        user_id: user.id().clone(),
+        span: DateSpan::new(date_of(0), date_of(120)).unwrap(),
+        minimum_sample_size: MINIMUM,
+        false_discovery_rate: 0.10,
+    };
+
+    get_correlations::execute(query, &deps)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.input == CorrelationInput::Temperature)
+}
+
+#[tokio::test]
+async fn a_days_temperature_does_not_depend_on_the_order_its_entries_were_written() {
+    let readings = [(1usize, 4.0f64), (5, 27.0), (9, 15.0)];
+
+    let one_way = temperature_row_over(&readings, &[0, 1, 2]).await.unwrap();
+    let another = temperature_row_over(&readings, &[2, 0, 1]).await.unwrap();
+
+    let coefficients = |row: &CorrelationRow| {
+        row.scores
+            .iter()
+            .map(|score| score.coefficient.value())
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        coefficients(&one_way),
+        coefficients(&another),
+        "the day's reading is a property of the day, not of write order"
+    );
+    assert_eq!(one_way.sample_size, another.sample_size);
+}
+
+#[tokio::test]
+async fn a_day_is_represented_by_its_warmest_reading() {
+    let cold_first = [(1usize, 4.0f64), (5, 27.0)];
+    let warm_first = [(1usize, 27.0f64), (5, 4.0)];
+
+    let only_the_warmest = [(1usize, 27.0f64)];
+
+    let over_both_cold_first = temperature_row_over(&cold_first, &[0, 1]).await.unwrap();
+    let over_both_warm_first = temperature_row_over(&warm_first, &[0, 1]).await.unwrap();
+    let over_the_warmest = temperature_row_over(&only_the_warmest, &[0]).await.unwrap();
+
+    let coefficients = |row: &CorrelationRow| {
+        row.scores
+            .iter()
+            .map(|score| score.coefficient.value())
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        coefficients(&over_both_cold_first),
+        coefficients(&over_the_warmest),
+        "27C is the day's reading whether it was written first or last"
+    );
+    assert_eq!(
+        coefficients(&over_both_warm_first),
+        coefficients(&over_the_warmest)
     );
 }

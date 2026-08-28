@@ -7,8 +7,8 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="mx-auto min-h-svh max-w-md bg-background">
-      <main className="pt-safe px-4 pb-20">{children}</main>
+    <div className="mx-auto min-h-svh max-w-md app-column">
+      <main className="px-4 pt-safe pb-nav">{children}</main>
       <BottomNav />
     </div>
   )
