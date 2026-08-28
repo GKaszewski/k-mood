@@ -81,6 +81,7 @@ export function MetricsEditor({ date, stored }: MetricsEditorProps) {
               field={field}
               stored={recorded.get(field.kind)}
               draft={drafts[field.kind] ?? ""}
+              invalid={invalid.includes(field)}
               onChange={(draft) =>
                 setDrafts((current) => ({ ...current, [field.kind]: draft }))
               }

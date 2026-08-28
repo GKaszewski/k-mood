@@ -7,6 +7,7 @@ import { MoodDistribution } from "@/components/stats/mood-distribution"
 import { MoodCorrelations } from "@/components/stats/mood-correlations"
 import { MoodSummary } from "@/components/stats/mood-summary"
 import { HeatmapSection } from "@/components/stats/heatmap-section"
+import { MetricsLink } from "@/components/stats/metrics-link"
 import { useMoodStats } from "@/hooks/use-stats"
 import { useTrend } from "@/hooks/use-trend"
 import { PERIODS, PERIOD_LABELS } from "@/lib/period"
@@ -60,6 +61,8 @@ function StatsPage() {
       ) : null}
 
       <HeatmapSection />
+
+      <MetricsLink />
     </div>
   )
 }
