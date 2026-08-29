@@ -21,6 +21,10 @@ function labelOf(row: CorrelationRowResponse): string {
     }
     case "moonPhase":
       return "Moon phase"
+    case "cycleProgress":
+      return "Cycle progress"
+    case "temperature":
+      return "Temperature"
     case "activity":
       return input.name
   }
@@ -34,8 +38,12 @@ function orderOf(row: CorrelationRowResponse): number {
       return METRIC_FIELDS.findIndex((f) => f.kind === input.metric)
     case "moonPhase":
       return METRIC_FIELDS.length
-    case "activity":
+    case "cycleProgress":
       return METRIC_FIELDS.length + 1
+    case "temperature":
+      return METRIC_FIELDS.length + 2
+    case "activity":
+      return METRIC_FIELDS.length + 3
   }
 }
 
@@ -84,6 +92,10 @@ function rowKey(row: CorrelationRowResponse): string {
       return `metric:${input.metric}`
     case "moonPhase":
       return "moonPhase"
+    case "cycleProgress":
+      return "cycleProgress"
+    case "temperature":
+      return "temperature"
     case "activity":
       return `activity:${input.activityId}`
   }

@@ -28,7 +28,10 @@ export function MetricRow({
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={inputId} className="flex items-center gap-2 text-xs">
-        <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <Icon
+          className="h-3.5 w-3.5 text-muted-foreground"
+          aria-hidden="true"
+        />
         {field.label}
         <span className="text-muted-foreground">({field.unit})</span>
       </Label>

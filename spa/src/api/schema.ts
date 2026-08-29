@@ -317,6 +317,8 @@ export type DateSpanParams = z.infer<typeof DateSpanParams>
 export const CorrelationInputPayload = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("metric"), metric: MetricKind }),
   z.object({ kind: z.literal("moonPhase") }),
+  z.object({ kind: z.literal("cycleProgress") }),
+  z.object({ kind: z.literal("temperature") }),
   z.object({
     kind: z.literal("activity"),
     activityId: uuid,
