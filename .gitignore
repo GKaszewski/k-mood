@@ -9,3 +9,4 @@ config.toml
 spa/node_modules/
 spa/dist/
 .claude/
+.superpowers/
