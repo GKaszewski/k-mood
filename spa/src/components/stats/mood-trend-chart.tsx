@@ -96,7 +96,7 @@ export function MoodTrendChart({
             />
             <Tooltip content={<TrendTooltip />} />
             <Area
-              type="natural"
+              type="monotone"
               dataKey="average"
               stroke={BEST_MOOD.swatch}
               fill={`url(#${GRADIENT_ID})`}
