@@ -4,6 +4,7 @@ import { ArrowLeft, Info } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SplitView } from "@/components/layout/split-view"
 import { PeriodPicker } from "@/components/compare/period-picker"
 import { PresetChips } from "@/components/compare/preset-chips"
 import { OverviewSection } from "@/components/compare/overview-section"
@@ -54,41 +55,67 @@ function ComparePage() {
       },
     })
 
+  const busy = "transition-opacity aria-busy:opacity-60"
+
   return (
-    <div className="flex flex-col gap-4 py-6">
-      <header className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Go back"
-          onClick={() => router.history.back()}
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-        </Button>
-        <h1 className="text-xl font-bold">Compare periods</h1>
-      </header>
+    <SplitView
+      panel={
+        <>
+          <header className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Go back"
+              onClick={() => router.history.back()}
+            >
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            </Button>
+            <h1 className="text-xl font-bold">Compare periods</h1>
+          </header>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <PeriodPicker
-            side="A"
-            color={PERIOD_A_COLOR}
-            span={a}
-            effective={current?.a}
-            onChange={(next: DaySpan) => show([next, b])}
-          />
-          <span className="text-xs text-muted-foreground">vs</span>
-          <PeriodPicker
-            side="B"
-            color={PERIOD_B_COLOR}
-            span={b}
-            effective={current?.b}
-            onChange={(next: DaySpan) => show([a, next])}
-          />
-        </div>
-        <PresetChips a={a} b={b} effectiveB={current?.b} onPick={show} />
-      </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <PeriodPicker
+                side="A"
+                color={PERIOD_A_COLOR}
+                span={a}
+                effective={current?.a}
+                onChange={(next: DaySpan) => show([next, b])}
+              />
+              <span className="text-xs text-muted-foreground">vs</span>
+              <PeriodPicker
+                side="B"
+                color={PERIOD_B_COLOR}
+                span={b}
+                effective={current?.b}
+                onChange={(next: DaySpan) => show([a, next])}
+              />
+            </div>
+            <PresetChips a={a} b={b} effectiveB={current?.b} onPick={show} />
+          </div>
 
+          {data && (
+            <div
+              className={`flex flex-col gap-4 ${busy}`}
+              aria-busy={isPlaceholderData}
+            >
+              {data.spansOverlap && (
+                <Alert>
+                  <Info aria-hidden="true" />
+                  <AlertTitle>The periods overlap</AlertTitle>
+                  <AlertDescription>
+                    Some days fall in both periods, so the two samples are not
+                    independent and no change is marked as likely real or noise.
+                    The figures are still shown.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <OverviewSection rows={data.overview} />
+            </div>
+          )}
+        </>
+      }
+    >
       {isLoading ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-40" />
@@ -102,21 +129,9 @@ function ComparePage() {
         </Alert>
       ) : data ? (
         <div
-          className="flex flex-col gap-4 transition-opacity aria-busy:opacity-60"
+          className={`flex flex-col gap-4 ${busy}`}
           aria-busy={isPlaceholderData}
         >
-          {data.spansOverlap && (
-            <Alert>
-              <Info aria-hidden="true" />
-              <AlertTitle>The periods overlap</AlertTitle>
-              <AlertDescription>
-                Some days fall in both periods, so the two samples are not
-                independent and no change is marked as likely real or noise. The
-                figures are still shown.
-              </AlertDescription>
-            </Alert>
-          )}
-          <OverviewSection rows={data.overview} />
           <TrendSection trend={data.trend} />
           <HeatmapSection a={data.a} b={data.b} />
           <MoodSection section={data.mood} />
@@ -127,6 +142,6 @@ function ComparePage() {
           {data.cycle && <CycleSection rows={data.cycle} />}
         </div>
       ) : null}
-    </div>
+    </SplitView>
   )
 }

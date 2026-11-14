@@ -16,4 +16,12 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof getRouter>
   }
+
+  interface StaticDataRouteOption {
+    /**
+     * A screen for reading data rather than entering it: on a wide screen it
+     * gets the full width instead of the phone-sized column.
+     */
+    wide?: boolean
+  }
 }

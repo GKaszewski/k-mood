@@ -54,10 +54,16 @@ function owns(item: NavItem, pathname: string): boolean {
   )
 }
 
-export function BottomNav() {
+/**
+ * The same tabs and the same log button in two shapes: a bar along the bottom
+ * on a phone, a rail down the left on a wide screen, where the bottom of the
+ * window is far from where the eye is.
+ */
+export function PrimaryNav() {
   const { location } = useRouterState()
   const [logging, setLogging] = useState(false)
   const [before, after] = [NAV_ITEMS.slice(0, 2), NAV_ITEMS.slice(2)]
+  const logButton = <LogButton onPress={() => setLogging(true)} />
 
   return (
     <>
@@ -68,29 +74,42 @@ export function BottomNav() {
       )}
       <nav
         aria-label="Primary"
-        className="fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        className="fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden"
       >
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-1">
           {before.map((item) => (
             <NavTab key={item.to} item={item} pathname={location.pathname} />
           ))}
-
-          <button
-            type="button"
-            aria-label="Log a mood"
-            aria-haspopup="dialog"
-            onClick={() => setLogging(true)}
-            className="-mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
-          >
-            <Plus className="h-6 w-6" aria-hidden="true" />
-          </button>
-
+          <div className="-mt-5">{logButton}</div>
           {after.map((item) => (
             <NavTab key={item.to} item={item} pathname={location.pathname} />
           ))}
         </div>
       </nav>
+      <nav
+        aria-label="Primary"
+        className="fixed top-0 bottom-0 left-0 z-50 hidden w-20 flex-col items-center gap-2 border-r bg-background/95 pt-6 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:flex"
+      >
+        <div className="mb-4">{logButton}</div>
+        {NAV_ITEMS.map((item) => (
+          <NavTab key={item.to} item={item} pathname={location.pathname} />
+        ))}
+      </nav>
     </>
+  )
+}
+
+function LogButton({ onPress }: { onPress: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Log a mood"
+      aria-haspopup="dialog"
+      onClick={onPress}
+      className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+    >
+      <Plus className="h-6 w-6" aria-hidden="true" />
+    </button>
   )
 }
 

@@ -86,3 +86,8 @@
 @utility pb-nav {
   padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
 }
+
+/* Clearance for the side rail that replaces the bottom bar on wide screens. */
+@utility pl-rail {
+  padding-left: 5rem;
+}

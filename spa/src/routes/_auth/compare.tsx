@@ -13,6 +13,7 @@ export type CompareSearch = Partial<ComparedSpansParams>
  * to its default pair.
  */
 export const Route = createFileRoute("/_auth/compare")({
+  staticData: { wide: true },
   validateSearch: (search: Record<string, unknown>): CompareSearch => {
     const parsed = CompareSearch.safeParse(search)
     return parsed.success ? parsed.data : {}

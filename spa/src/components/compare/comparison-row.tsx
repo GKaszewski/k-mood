@@ -19,6 +19,13 @@ export interface ComparisonLine {
 
 export function ComparisonRow({ line }: { line: ComparisonLine }) {
   const { row, kind } = line
+  const badge = (
+    <SignificanceBadge
+      significance={row.significance}
+      sampleA={row.sampleA}
+      sampleB={row.sampleB}
+    />
+  )
 
   return (
     <TableRow>
@@ -29,6 +36,8 @@ export function ComparisonRow({ line }: { line: ComparisonLine }) {
         )}
       >
         {line.label}
+        {/* A narrow card has no room for a badge column, so the badge sits under the label. */}
+        <div className="mt-1 @md:hidden">{badge}</div>
       </TableCell>
       <TableCell className="text-right tabular-nums">
         {formatValue(kind, row.a)}
@@ -39,24 +48,20 @@ export function ComparisonRow({ line }: { line: ComparisonLine }) {
       <TableCell className="text-right tabular-nums">
         <span>{formatChange(kind, row.absoluteChange)}</span>
         {row.relativeChange !== null && (
-          <span className="ml-1 text-[10px] text-muted-foreground">
+          <span className="block text-[10px] text-muted-foreground @md:ml-1 @md:inline">
             {formatRelative(row.relativeChange)}
           </span>
         )}
       </TableCell>
-      <TableCell className="w-16">
+      <TableCell className="hidden w-16 @md:table-cell">
         <ChangeBar
           kind={kind}
           absoluteChange={row.absoluteChange}
           relativeChange={row.relativeChange}
         />
       </TableCell>
-      <TableCell className="text-right">
-        <SignificanceBadge
-          significance={row.significance}
-          sampleA={row.sampleA}
-          sampleB={row.sampleB}
-        />
+      <TableCell className="hidden text-right @md:table-cell">
+        {badge}
       </TableCell>
     </TableRow>
   )
