@@ -10,3 +10,5 @@ spa/node_modules/
 spa/dist/
 .claude/
 .superpowers/
+
+__pycache__/
