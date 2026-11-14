@@ -2,6 +2,10 @@ mod activity;
 mod api_token;
 mod bulk;
 mod calendar;
+mod comparison;
+mod comparison_music;
+mod comparison_rows;
+mod comparison_trend;
 mod correlation;
 mod cycle;
 mod entry;
@@ -15,6 +19,7 @@ mod reminder;
 mod restore;
 pub mod shared;
 mod stats;
+mod trend;
 mod user;
 
 pub use metric::parse_date;

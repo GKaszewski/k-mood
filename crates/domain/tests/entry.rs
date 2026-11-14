@@ -15,3 +15,6 @@ mod date_test;
 
 #[path = "entry/day_mood_test.rs"]
 mod day_mood_test;
+
+#[path = "entry/date_span_test.rs"]
+mod date_span_test;

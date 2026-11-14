@@ -1,3 +1,4 @@
+mod clipped_span;
 mod content;
 mod date;
 mod date_range;
@@ -9,6 +10,7 @@ mod mood_entry;
 mod mood_entry_id;
 mod pagination;
 
+pub use clipped_span::ClippedSpan;
 pub use content::Content;
 pub use date::Date;
 pub use date_range::DateRange;

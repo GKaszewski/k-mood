@@ -1,5 +1,6 @@
 pub mod activities;
 pub mod auth;
+pub mod comparisons;
 pub mod correlations;
 pub mod cycle;
 pub mod data;

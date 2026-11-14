@@ -24,3 +24,6 @@ mod dimension_test;
 
 #[path = "entry/calendar_test.rs"]
 mod calendar_test;
+
+#[path = "entry/get_mood_trend_test.rs"]
+mod get_mood_trend_test;

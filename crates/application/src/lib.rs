@@ -2,6 +2,7 @@ pub mod activity;
 pub mod api_token;
 pub mod auth;
 pub mod authorization;
+pub mod comparison;
 pub mod correlation;
 pub mod cycle;
 pub mod day;

@@ -8,6 +8,7 @@ import { MoodCorrelations } from "@/components/stats/mood-correlations"
 import { MoodSummary } from "@/components/stats/mood-summary"
 import { HeatmapSection } from "@/components/stats/heatmap-section"
 import { MetricsLink } from "@/components/stats/metrics-link"
+import { CompareLink } from "@/components/stats/compare-link"
 import { useMoodStats } from "@/hooks/use-stats"
 import { useTrend } from "@/hooks/use-trend"
 import { PERIODS, PERIOD_LABELS } from "@/lib/period"
@@ -48,9 +49,7 @@ function StatsPage() {
         <>
           <MoodSummary stats={stats} />
 
-          {trend?.length ? (
-            <MoodTrendChart points={trend} period={period} />
-          ) : null}
+          {trend ? <MoodTrendChart trend={trend} /> : null}
 
           {stats.frequency.length ? (
             <MoodDistribution frequency={stats.frequency} />
@@ -63,6 +62,8 @@ function StatsPage() {
       <HeatmapSection />
 
       <MetricsLink />
+
+      <CompareLink />
     </div>
   )
 }

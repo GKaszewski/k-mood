@@ -13,8 +13,8 @@ use utoipa_scalar::{Scalar, Servable};
 
 use crate::errors::{INTERNAL_ERROR, TOO_MANY_REQUESTS, refuse};
 use crate::handlers::{
-    activities, auth, correlations, cycle, data, entries, import_export, jobs, media, metrics,
-    providers, push, reminders, server, tokens, users,
+    activities, auth, comparisons, correlations, cycle, data, entries, import_export, jobs, media,
+    metrics, providers, push, reminders, server, tokens, users,
 };
 use crate::openapi::ApiDoc;
 use crate::state::AppState;
@@ -170,6 +170,7 @@ fn api_routes() -> Router<AppState> {
         .nest("/media", media_routes())
         .nest("/metrics", metric_routes())
         .nest("/correlations", correlation_routes())
+        .nest("/comparisons", comparison_routes())
         .nest("/tokens", token_routes())
         .nest("/cycle", cycle_routes())
         .nest("/providers", provider_routes())
@@ -194,6 +195,10 @@ fn token_routes() -> Router<AppState> {
 
 fn correlation_routes() -> Router<AppState> {
     Router::new().route("/", get(correlations::handle_list))
+}
+
+fn comparison_routes() -> Router<AppState> {
+    Router::new().route("/", get(comparisons::handle_compare))
 }
 
 fn metric_routes() -> Router<AppState> {
@@ -232,6 +237,7 @@ fn entry_routes() -> Router<AppState> {
         )
         .route("/bulk", post(entries::handle_create_many))
         .route("/stats", get(entries::handle_stats))
+        .route("/trend", get(entries::handle_trend))
         .route("/calendar", get(entries::handle_calendar))
         .route("/filter/mood/{mood}", get(entries::handle_filter_by_mood))
         .route(

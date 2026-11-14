@@ -8,6 +8,7 @@ import { MoodSummary } from "@/components/stats/mood-summary"
 import { TodayCard } from "@/components/dashboard/today-card"
 import { MetricsCard } from "@/components/dashboard/metrics-card"
 import { SetupCard } from "@/components/dashboard/setup-card"
+import { CompareLink } from "@/components/stats/compare-link"
 import { useRecentEntries } from "@/hooks/use-entries"
 import { useMoodStats } from "@/hooks/use-stats"
 import { useAuth } from "@/hooks/use-auth"
@@ -40,6 +41,8 @@ function DashboardPage() {
       <TodayCard latest={entries[0]} />
 
       <MetricsCard />
+
+      <CompareLink />
 
       {stats && <SetupCard totalEntries={stats.totalEntries} />}
 

@@ -91,7 +91,7 @@ Tests:
 - **Shares** (activity share, mood share, weather condition share): **two-proportion z-test**. New file in the shared statistics location.
 - Standard score → p-value via the existing `correlation/normal.rs` / `p_value.rs`.
 - **Multiple comparisons:** the response has dozens of rows; apply the existing Benjamini–Hochberg `Adjustment` across all tested rows (i.e. excluding `NotTested`) of one comparison using `analysis_config.false_discovery_rate`. A row is `LikelyReal` only if it survives adjustment.
-- Below `analysis_config.minimum_sample_size` on either side → `NotEnoughData`, no test run, but values still returned.
+- Below `analysis_config.comparison_minimum_sample_size` (default 10, replacing the shared gate for comparisons; see ADR 0021) on either side → `NotEnoughData`, no test run, but values still returned.
 
 The shared statistics (Welch, proportions, normal, p-value, adjustment) should move from `correlation/` into a neutral module (e.g. `domain::statistics`) so comparison does not depend on correlation. *(Builder's call whether to move or re-export; moving is preferred per DRY/SRP.)*
 

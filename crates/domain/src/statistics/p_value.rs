@@ -1,6 +1,7 @@
 use crate::errors::DomainError;
 
 use super::normal::two_sided_tail;
+use super::student_t::student_t_two_sided;
 
 const CERTAIN: f64 = 1.0;
 const IMPOSSIBLE: f64 = 0.0;
@@ -21,6 +22,10 @@ impl PValue {
 
     pub fn from_standard_score(standard_score: f64) -> Self {
         Self(two_sided_tail(standard_score))
+    }
+
+    pub fn from_t_statistic(statistic: f64, degrees_of_freedom: f64) -> Self {
+        Self(student_t_two_sided(statistic, degrees_of_freedom))
     }
 
     pub fn value(&self) -> f64 {

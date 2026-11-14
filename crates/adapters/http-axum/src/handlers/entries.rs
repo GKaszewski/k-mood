@@ -2,19 +2,19 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 
-use api_types::params::{DateRangeParams, ListEntriesParams};
+use api_types::params::{DateRangeParams, ListEntriesParams, TrendParams};
 use api_types::requests::{
     CreateEntriesRequest, CreateEntryRequest, ReplaceActivityRequest, UpdateEntryRequest,
 };
 use api_types::responses::{
     BulkActionResponse, CalendarDayResponse, EntryPageResponse, EntryResponse, ErrorResponse,
-    MoodStatsResponse,
+    MoodStatsResponse, MoodTrendResponse,
 };
 use application::entry::composition::EntryComposer;
-use application::entry::queries::MoodStatsQuery;
+use application::entry::queries::{MoodStatsQuery, MoodTrendQuery};
 use application::entry::use_cases::{
     create_entries, create_entry, delete_entries_by_date_range, delete_entry, get_calendar,
-    get_entry, get_mood_stats, list_entries, replace_activity, update_entry,
+    get_entry, get_mood_stats, get_mood_trend, list_entries, replace_activity, update_entry,
 };
 use domain::entry::{MoodEntry, MoodEntryId, Page};
 
@@ -301,6 +301,39 @@ pub async fn handle_stats(
     };
     let stats = get_mood_stats::execute(query, &deps).await?;
     Ok(Json(MoodStatsResponse::from(stats)))
+}
+
+#[utoipa::path(get, path = "/api/v1/entries/trend", tag = "entries", security(("bearer" = [])),
+    params(TrendParams),
+    description = "The mood trend over a date span, already bucketed for drawing. The bucket is \
+                   a day for a span of up to 31 days, a calendar week for up to 366 days and a \
+                   calendar month beyond that. Weeks start on `weekStartsOn` (a lowercase English \
+                   day name, Monday when omitted). A bucket in which nothing was logged is \
+                   returned with a null `meanMood`, so a chart can draw it as a gap. The first \
+                   and last bucket cover only the days inside the span.",
+    responses((status = 200, body = MoodTrendResponse),
+        (status = 401, description = "No credential, or one this endpoint does not accept", body = ErrorResponse),
+        (status = 403, description = "A token that does not grant what this endpoint needs", body = ErrorResponse),
+        (status = 400, description = "Malformed request", body = ErrorResponse),
+        (status = 422, description = "Understood but refused", body = ErrorResponse))
+)]
+pub async fn handle_trend(
+    State(state): State<AppState>,
+    JournalReader(user_id): JournalReader,
+    Params(params): Params<TrendParams>,
+) -> Result<Json<MoodTrendResponse>, ApiError> {
+    let (span, week_start) = params.into_query_parts()?;
+    let query = MoodTrendQuery {
+        user_id,
+        span,
+        week_start,
+    };
+    let deps = get_mood_trend::Deps {
+        entries: state.entry_query,
+        users: state.user_query,
+    };
+    let trend = get_mood_trend::execute(query, &deps).await?;
+    Ok(Json(MoodTrendResponse::from(trend)))
 }
 
 #[utoipa::path(get, path = "/api/v1/entries/calendar", tag = "entries", security(("bearer" = [])),

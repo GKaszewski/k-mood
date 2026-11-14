@@ -76,6 +76,9 @@ allow_registration = true
 [analysis]
 minimum_sample_size = 30
 false_discovery_rate = 0.10
+comparison_minimum_sample_size = 10
+maximum_comparison_days = 1830
+top_music_count = 10
 
 [import]
 maximum_days_per_import = 90

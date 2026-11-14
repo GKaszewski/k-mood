@@ -1,51 +1,40 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query"
+import { subDays } from "date-fns"
 import { entries } from "@/api/client"
-import { rangeOfDays } from "@/lib/instant-range"
+import type { DaySpan } from "@/lib/compare-presets"
+import { formatDate } from "@/lib/day"
+import { PERIOD_DAYS } from "@/lib/period"
 import type { Period } from "@/lib/period"
-import { rangeOfPeriod, useMoodStats } from "./use-stats"
-
-/** One day that was actually logged, and how much was logged that day. */
-export interface TrendPoint {
-  date: string
-  mood: number
-  entryCount: number
-}
+import { weekStartName } from "@/lib/week"
+import { useMoodStats } from "./use-stats"
 
 const TREND_FRESH_FOR = 60_000
 
+function spanOfPeriod(period: Period): DaySpan | undefined {
+  const days = PERIOD_DAYS[period]
+  if (days === null) return undefined
+
+  const today = new Date()
+  return { from: formatDate(subDays(today, days)), to: formatDate(today) }
+}
+
 /**
- * The trend reads the calendar rather than the entry list: the chart plots one
- * point per day whatever the period, and the calendar already answers in days,
- * so no period can outgrow a page of entries and be quietly truncated.
+ * The trend is bucketed by the server, which knows the calendar and the
+ * reader's days; the page only says which span and which day a week starts on.
  */
 export function useTrend(period: Period) {
   const { data: stats } = useMoodStats("all")
-  const wholeHistory =
+  const wholeHistory: DaySpan | undefined =
     stats?.firstLoggedOn && stats.lastLoggedOn
-      ? rangeOfDays(new Date(stats.firstLoggedOn), new Date(stats.lastLoggedOn))
+      ? { from: stats.firstLoggedOn, to: stats.lastLoggedOn }
       : undefined
-  const range = period === "all" ? wholeHistory : rangeOfPeriod(period)
+  const span = period === "all" ? wholeHistory : spanOfPeriod(period)
+  const weekStartsOn = weekStartName()
 
   return useQuery({
-    queryKey: ["trend", period, range?.from, range?.to],
-    enabled: range !== undefined,
-    queryFn: async (): Promise<TrendPoint[]> => {
-      if (!range) return []
-
-      const days = await entries.calendar(range)
-
-      return days.flatMap((day) =>
-        day.dayMood === null
-          ? []
-          : [
-              {
-                date: day.date,
-                mood: day.dayMood,
-                entryCount: day.entries.length,
-              },
-            ]
-      )
-    },
+    queryKey: ["trend", period, span?.from, span?.to, weekStartsOn],
+    enabled: span !== undefined,
+    queryFn: () => entries.trend({ ...span!, weekStartsOn }),
     staleTime: TREND_FRESH_FOR,
     placeholderData: keepPreviousData,
   })

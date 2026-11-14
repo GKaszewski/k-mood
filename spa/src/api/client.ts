@@ -26,7 +26,9 @@ import {
   MintedApiTokenResponse,
   ServerInfoResponse,
   CorrelationRowResponse,
+  ComparisonResponse,
   DimensionPayload,
+  MoodTrendResponse,
 } from "./schema"
 import { serverUrl } from "./server-url"
 import {
@@ -37,6 +39,7 @@ import {
 } from "./session"
 import type {
   ChangePasswordRequest,
+  ComparedSpansParams,
   CreateActivityRequest,
   CreateEntriesRequest,
   CreateEntryRequest,
@@ -47,6 +50,7 @@ import type {
   DateRangeParams,
   ListEntriesParams,
   LoginRequest,
+  MoodTrendParams,
   MintApiTokenRequest,
   RegisterRequest,
   RenameActivityRequest,
@@ -276,6 +280,19 @@ export const correlations = {
     ),
 }
 
+// ── Comparisons ─────────────────────────────────────────────────
+
+export const comparisons = {
+  compare: (params: ComparedSpansParams) =>
+    request(
+      "get",
+      "/api/v1/comparisons",
+      ComparisonResponse,
+      undefined,
+      params
+    ),
+}
+
 // ── Daily metrics ───────────────────────────────────────────────
 
 export const metrics = {
@@ -336,6 +353,15 @@ export const entries = {
       "get",
       "/api/v1/entries/calendar",
       CalendarDayResponse.array(),
+      undefined,
+      params
+    ),
+
+  trend: (params: MoodTrendParams) =>
+    request(
+      "get",
+      "/api/v1/entries/trend",
+      MoodTrendResponse,
       undefined,
       params
     ),

@@ -10,32 +10,26 @@ import {
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BEST_MOOD, MIDDLE_MOOD, WORST_MOOD, getMoodEmoji } from "@/lib/mood"
-import { aggregateTrend, bucketFor } from "@/lib/trend-buckets"
-import type { TrendBar } from "@/lib/trend-buckets"
-import type { TrendPoint } from "@/hooks/use-trend"
-import type { Period } from "@/lib/period"
+import { barsOf } from "@/lib/trend-labels"
+import type { TrendBar } from "@/lib/trend-labels"
+import type { MoodTrendResponse } from "@/api/schema"
 
 const GRADIENT_ID = "moodTrendGradient"
 const MAX_POINTS_WITH_DOTS = 60
 const AXIS_PADDING = 0.5
 
 interface MoodTrendChartProps {
-  points: TrendPoint[]
-  period: Period
+  trend: MoodTrendResponse
   title?: string
 }
 
 export function MoodTrendChart({
-  points,
-  period,
+  trend,
   title = "Mood over time",
 }: MoodTrendChartProps) {
-  const bars = useMemo(
-    () => aggregateTrend(points, bucketFor(period, points.length)),
-    [points, period]
-  )
+  const bars = useMemo(() => barsOf(trend.granularity, trend.points), [trend])
 
-  if (bars.length === 0) return null
+  if (!bars.some((bar) => bar.average !== null)) return null
 
   const showDots = bars.length <= MAX_POINTS_WITH_DOTS
 
@@ -112,6 +106,7 @@ export function MoodTrendChart({
                   : false
               }
               activeDot={{ r: 4, fill: BEST_MOOD.swatch }}
+              connectNulls={false}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -129,6 +124,7 @@ function TrendTooltip(props: unknown) {
   if (!active || !payload?.length) return null
 
   const bar = payload[0].payload
+  if (bar.average === null) return null
 
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md">

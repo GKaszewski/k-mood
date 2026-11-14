@@ -348,6 +348,184 @@ export const CorrelationRowResponse = z.object({
 })
 export type CorrelationRowResponse = z.infer<typeof CorrelationRowResponse>
 
+// ── Period comparison ───────────────────────────────────────────
+
+export const ComparedSpansParams = z.object({
+  aFrom: date,
+  aTo: date,
+  bFrom: date,
+  bTo: date,
+})
+export type ComparedSpansParams = z.infer<typeof ComparedSpansParams>
+
+export const Significance = z.enum([
+  "likelyReal",
+  "noise",
+  "notEnoughData",
+  "notTested",
+])
+export type Significance = z.infer<typeof Significance>
+
+export const ComparisonRowResponse = z.object({
+  key: z.string(),
+  a: z.number().nullable(),
+  b: z.number().nullable(),
+  absoluteChange: z.number().nullable(),
+  relativeChange: z.number().nullable(),
+  sampleA: z.int(),
+  sampleB: z.int(),
+  significance: Significance,
+})
+export type ComparisonRowResponse = z.infer<typeof ComparisonRowResponse>
+
+export const MoodComparisonRowResponse = ComparisonRowResponse.extend({
+  mood: Mood.nullable(),
+  moodLabel: z.string().nullable(),
+})
+export type MoodComparisonRowResponse = z.infer<
+  typeof MoodComparisonRowResponse
+>
+
+export const ActivityComparisonRowResponse = ComparisonRowResponse.extend({
+  activityId: z.string(),
+  name: z.string(),
+  category: z.string().nullable(),
+})
+export type ActivityComparisonRowResponse = z.infer<
+  typeof ActivityComparisonRowResponse
+>
+
+export const MetricComparisonRowResponse = ComparisonRowResponse.extend({
+  kind: MetricKind,
+  unit: z.string(),
+})
+export type MetricComparisonRowResponse = z.infer<
+  typeof MetricComparisonRowResponse
+>
+
+export const WeatherComparisonRowResponse = ComparisonRowResponse.extend({
+  condition: z.string().nullable(),
+})
+export type WeatherComparisonRowResponse = z.infer<
+  typeof WeatherComparisonRowResponse
+>
+
+export const CycleComparisonRowResponse = ComparisonRowResponse.extend({
+  quarter: z.int().min(1).max(4),
+})
+export type CycleComparisonRowResponse = z.infer<
+  typeof CycleComparisonRowResponse
+>
+
+export const PeriodResponse = z.object({
+  from: date,
+  to: date,
+  clipped: z.boolean(),
+  daysInSpan: z.int(),
+  loggedDays: z.int(),
+})
+export type PeriodResponse = z.infer<typeof PeriodResponse>
+
+export const ComparedTrendPointResponse = z.object({
+  offset: z.int(),
+  start: date,
+  daysCovered: z.int(),
+  meanMood: z.number().nullable(),
+  loggedDays: z.int(),
+  entries: z.int(),
+})
+export type ComparedTrendPointResponse = z.infer<
+  typeof ComparedTrendPointResponse
+>
+
+export const TrendGranularity = z.enum(["day", "week", "month"])
+export type TrendGranularity = z.infer<typeof TrendGranularity>
+
+export const ComparedTrendResponse = z.object({
+  granularity: TrendGranularity,
+  a: z.array(ComparedTrendPointResponse),
+  b: z.array(ComparedTrendPointResponse),
+})
+export type ComparedTrendResponse = z.infer<typeof ComparedTrendResponse>
+
+export const MoodTrendResponse = z.object({
+  granularity: TrendGranularity,
+  points: z.array(ComparedTrendPointResponse),
+})
+export type MoodTrendResponse = z.infer<typeof MoodTrendResponse>
+
+export const WeekStartName = z.enum([
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+])
+export type WeekStartName = z.infer<typeof WeekStartName>
+
+export const MoodTrendParams = z.object({
+  from: date,
+  to: date,
+  weekStartsOn: WeekStartName,
+})
+export type MoodTrendParams = z.infer<typeof MoodTrendParams>
+
+export const MoodSectionResponse = z.object({
+  rows: z.array(MoodComparisonRowResponse),
+  distribution: z.object({
+    a: z.array(MoodFrequencyResponse),
+    b: z.array(MoodFrequencyResponse),
+  }),
+})
+export type MoodSectionResponse = z.infer<typeof MoodSectionResponse>
+
+export const RankedResponse = z.object({
+  name: z.string(),
+  count: z.int(),
+  share: z.number(),
+})
+export type RankedResponse = z.infer<typeof RankedResponse>
+
+export const RankedSongResponse = z.object({
+  artist: z.string(),
+  title: z.string(),
+  count: z.int(),
+  share: z.number(),
+})
+export type RankedSongResponse = z.infer<typeof RankedSongResponse>
+
+export const MusicResponse = z.object({
+  entriesWithSong: z.int(),
+  artists: z.array(RankedResponse),
+  songs: z.array(RankedSongResponse),
+})
+export type MusicResponse = z.infer<typeof MusicResponse>
+
+export const MusicComparisonResponse = z.object({
+  a: MusicResponse,
+  b: MusicResponse,
+  onlyInA: z.array(z.string()),
+  onlyInB: z.array(z.string()),
+})
+export type MusicComparisonResponse = z.infer<typeof MusicComparisonResponse>
+
+export const ComparisonResponse = z.object({
+  a: PeriodResponse,
+  b: PeriodResponse,
+  spansOverlap: z.boolean(),
+  trend: ComparedTrendResponse,
+  overview: z.array(ComparisonRowResponse),
+  mood: MoodSectionResponse,
+  activities: z.array(ActivityComparisonRowResponse),
+  metrics: z.array(MetricComparisonRowResponse),
+  weather: z.array(WeatherComparisonRowResponse),
+  music: MusicComparisonResponse,
+  cycle: z.array(CycleComparisonRowResponse).nullable(),
+})
+export type ComparisonResponse = z.infer<typeof ComparisonResponse>
+
 export const TokenScope = z.enum([
   "readJournal",
   "writeJournal",

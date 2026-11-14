@@ -16,6 +16,7 @@ import { Route as AuthIndexRouteImport } from './routes/_auth/index'
 import { Route as AuthActivitiesRouteImport } from './routes/_auth/activities'
 import { Route as AuthAddRouteImport } from './routes/_auth/add'
 import { Route as AuthCalendarRouteImport } from './routes/_auth/calendar'
+import { Route as AuthCompareRouteImport } from './routes/_auth/compare'
 import { Route as AuthDiaryRouteImport } from './routes/_auth/diary'
 import { Route as AuthExportRouteImport } from './routes/_auth/export'
 import { Route as AuthImportRouteImport } from './routes/_auth/import'
@@ -64,6 +65,11 @@ const AuthCalendarRoute = AuthCalendarRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/calendar.lazy').then((d) => d.Route),
 )
+const AuthCompareRoute = AuthCompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() => import('./routes/_auth/compare.lazy').then((d) => d.Route))
 const AuthDiaryRoute = AuthDiaryRouteImport.update({
   id: '/diary',
   path: '/diary',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/activities': typeof AuthActivitiesRoute
   '/add': typeof AuthAddRoute
   '/calendar': typeof AuthCalendarRoute
+  '/compare': typeof AuthCompareRoute
   '/diary': typeof AuthDiaryRoute
   '/export': typeof AuthExportRoute
   '/import': typeof AuthImportRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/activities': typeof AuthActivitiesRoute
   '/add': typeof AuthAddRoute
   '/calendar': typeof AuthCalendarRoute
+  '/compare': typeof AuthCompareRoute
   '/diary': typeof AuthDiaryRoute
   '/export': typeof AuthExportRoute
   '/import': typeof AuthImportRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/_auth/activities': typeof AuthActivitiesRoute
   '/_auth/add': typeof AuthAddRoute
   '/_auth/calendar': typeof AuthCalendarRoute
+  '/_auth/compare': typeof AuthCompareRoute
   '/_auth/diary': typeof AuthDiaryRoute
   '/_auth/export': typeof AuthExportRoute
   '/_auth/import': typeof AuthImportRoute
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/activities'
     | '/add'
     | '/calendar'
+    | '/compare'
     | '/diary'
     | '/export'
     | '/import'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/activities'
     | '/add'
     | '/calendar'
+    | '/compare'
     | '/diary'
     | '/export'
     | '/import'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/_auth/activities'
     | '/_auth/add'
     | '/_auth/calendar'
+    | '/_auth/compare'
     | '/_auth/diary'
     | '/_auth/export'
     | '/_auth/import'
@@ -281,6 +293,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/calendar'
       preLoaderRoute: typeof AuthCalendarRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/compare': {
+      id: '/_auth/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof AuthCompareRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/diary': {
@@ -353,6 +372,7 @@ interface AuthRouteChildren {
   AuthActivitiesRoute: typeof AuthActivitiesRoute
   AuthAddRoute: typeof AuthAddRoute
   AuthCalendarRoute: typeof AuthCalendarRoute
+  AuthCompareRoute: typeof AuthCompareRoute
   AuthDiaryRoute: typeof AuthDiaryRoute
   AuthExportRoute: typeof AuthExportRoute
   AuthImportRoute: typeof AuthImportRoute
@@ -369,6 +389,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthActivitiesRoute: AuthActivitiesRoute,
   AuthAddRoute: AuthAddRoute,
   AuthCalendarRoute: AuthCalendarRoute,
+  AuthCompareRoute: AuthCompareRoute,
   AuthDiaryRoute: AuthDiaryRoute,
   AuthExportRoute: AuthExportRoute,
   AuthImportRoute: AuthImportRoute,

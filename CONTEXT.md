@@ -181,3 +181,21 @@ _Avoid_: Correction, p-value adjustment, filter, significance
 **Family**:
 The set of results one Adjustment is computed over. A Family is a question, not a screen: MetricKinds form one, Activities another, because how many Activities a User keeps has nothing to do with whether their sleep tracks their mood. Adjustment is computed per Family within a single CorrelationStrategy.
 _Avoid_: Group, test set, batch, comparison set
+
+### Comparison
+
+**Comparison**:
+Two DateSpans put side by side, A and B, with every compared figure either a rate over the days that could have carried it or a descriptive plain figure, and each difference marked as likely real, noise, not enough data, or not tested. Computed wholly on the server. Overlapping spans are compared without any mark, since the tests assume independent samples.
+_Avoid_: Diff, versus view, A/B test, report
+
+**PeriodSummary**:
+Everything a Comparison reads from one DateSpan: its Coverage, mood, activities, metrics, weather, music and cycle, all derived from the period's logged entries, daily metrics and the User's Timezone. One per side. A span that ends after today is clipped to today before it is summarised.
+_Avoid_: Stats, report, rollup, aggregate
+
+**Coverage**:
+How much of a DateSpan was actually logged — the days in it, the days with at least one MoodEntry, and the share between them. Reported beside every rate so that a change in how much was logged is not mistaken for a change in mood.
+_Avoid_: Completeness, streak, adherence, fill rate
+
+**TrendBucket**:
+One point on a trend line: a run of days with its start, the days it covers, the mean DayMood, the logged days and the entries. A bucket with no logged day has no mean rather than an interpolated one. Built on the server, from the span's own start in a Comparison and by calendar day, week or month in the single-period trend.
+_Avoid_: Data point, tick, interval, sample

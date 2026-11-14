@@ -5,6 +5,7 @@ pub mod delete_entry;
 pub mod get_calendar;
 pub mod get_entry;
 pub mod get_mood_stats;
+pub mod get_mood_trend;
 pub mod list_entries;
 pub mod replace_activity;
 pub mod update_entry;

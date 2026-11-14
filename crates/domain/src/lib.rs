@@ -4,6 +4,7 @@ pub mod activity;
 pub mod api_token;
 pub mod attachment;
 pub mod auth;
+pub mod comparison;
 pub mod correlation;
 pub mod cycle;
 pub mod dimension;
@@ -21,6 +22,8 @@ pub mod rejection;
 pub mod reminder;
 pub mod services;
 pub mod song;
+pub mod statistics;
+pub mod trend;
 pub mod user;
 pub mod weather;
 

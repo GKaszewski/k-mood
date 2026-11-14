@@ -1,3 +1,5 @@
+import type { WeekStartName } from "@/api/schema"
+
 const MONDAY = 1
 
 type WeekStart = 0 | 1 | 2 | 3 | 4 | 5 | 6
@@ -28,6 +30,21 @@ export function weekStartsOn(): WeekStart {
   }
 
   return MONDAY
+}
+
+const WEEK_START_NAMES: WeekStartName[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+]
+
+/** The reader's first weekday by name, which is how the API takes it. */
+export function weekStartName(): WeekStartName {
+  return WEEK_START_NAMES[weekStartsOn()]
 }
 
 /** Weekday initials, rotated to start on the reader's first day. */
